@@ -1,59 +1,46 @@
 import argparse
-import sqlite3
-import pandas as pd
-from datetime import datetime
-from daily_metrics import BUSINESS_HOURS, EXCLUDE_ITEMS, MAIN_DISH_KEYWORDS, is_in_period, normalize_payment
 
-DB_PATH = "data/db/ichef.db"
+from metrics_common import (
+    count_main_dishes,
+    is_in_period,
+    load_orders,
+    normalize_payment,
+    preprocess_orders,
+)
 
-# def count_bowls(items_text: str) -> int:
-#     if not items_text or pd.isna(items_text):
-#         return 0
-#     return len([x for x in items_text.split(",") if x.strip()])
-
-def count_bowls(items_text: str) -> int:
-    if not items_text: return 0
-    items = items_text.split(",")
-    # 只要品項包含關鍵字，且不在排除清單內
-    count = sum(1 for it in items if any(k in it for k in MAIN_DISH_KEYWORDS) 
-                and not any(e in it for e in EXCLUDE_ITEMS))
-    return count
 
 def is_peak(hour_float: float) -> bool:
     return 12 <= hour_float < 13.5
 
 
 def calculate_weekly_metrics(start_date: str, end_date: str):
-    conn = sqlite3.connect(DB_PATH)
+    df = load_orders(
+        start_date,
+        end_date,
+        columns=[
+            "checkout_time",
+            "order_source",
+            "order_type",
+            "invoice_amount",
+            "payment_method",
+            "order_status",
+            "items_text",
+        ],
+    )
 
-    query = """
-        SELECT
-            checkout_time,
-            order_source,
-            order_type,
-            invoice_amount,
-            payment_method,
-            order_status,
-            items_text
-        FROM raw_orders
-        WHERE checkout_time >= ?
-          AND checkout_time < date(?, '+1 day')
-          AND order_status NOT LIKE '%Voided%'
-    """
-
-    df = pd.read_sql_query(query, conn, params=(start_date, end_date))
-    conn.close()
+    if df.empty:
+        return None
 
     # ---------- 基本前處理 ----------
     # 1. 過濾員工餐與無效訂單
     # 邏輯：排除金額為 0 的訂單（視為員工餐或公關單）
-    df = df[df["invoice_amount"] > 0].copy()
+    df = preprocess_orders(df)
+    if df.empty:
+        return None
 
-    df["checkout_time"] = pd.to_datetime(df["checkout_time"])
     df["date"] = df["checkout_time"].dt.date
     df["hour"] = df["checkout_time"].dt.hour + df["checkout_time"].dt.minute / 60
-    # df["dish_qty"] = df["items_text"].apply(count_bowls)
-    df["bowls"] = df["items_text"].apply(count_bowls)
+    df["bowls"] = df["items_text"].apply(count_main_dishes)
     df["is_peak"] = df["hour"].apply(is_peak)
 
     # ---------- 基礎量體 ----------
@@ -140,52 +127,41 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
         "total_orders": total_orders,
         "total_bowls": total_bowls,
         "total_revenue": total_revenue,
-
         **bowl_dist,
         **bowl_revenue,
-
         "hourly_orders": hourly_orders,
         "hourly_bowls": hourly_bowls,
-
         "lunch_orders": lunch_orders,
         "dinner_orders": dinner_orders,
         "peak_orders": peak_orders,
         "non_peak_orders": non_peak_orders,
-
         "dine_in_orders": dine_in_orders,
         "takeout_orders": takeout_orders,
         "online_orders": online_orders,
-
         "dine_in_bowls": dine_in_bowls,
         "takeout_bowls": takeout_bowls,
         "online_bowls": online_bowls,
-
         "peak_dine_in": peak_dine_in,
         "peak_takeout": peak_takeout,
         "peak_online": peak_online,
-
         "non_peak_dine_in": non_peak_dine_in,
         "non_peak_takeout": non_peak_takeout,
         "non_peak_online": non_peak_online,
-
         "cash_orders": cash_orders,
         "linepay_orders": linepay_orders,
         "peak_cash": peak_cash,
         "peak_linepay": peak_linepay,
         "non_peak_cash": non_peak_cash,
         "non_peak_linepay": non_peak_linepay,
-
         "daily_orders": daily_orders,
         "daily_bowls": daily_bowls,
         "daily_revenue": daily_revenue,
         "max_bowl_day": max_bowl_day,
         "min_bowl_day": min_bowl_day,
-
         "price_distribution": price_dist,
         "orders_ge_200": high_value_orders,
     }
 
-import pprint
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -200,5 +176,3 @@ if __name__ == "__main__":
     else:
         for i, (key, value) in enumerate(result.items(), start=1):
             print(f"{i}. {key}: {value}")
-            # pass
-
