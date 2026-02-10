@@ -1,10 +1,7 @@
 import argparse
 import sqlite3
 import pandas as pd
-from datetime import datetime
-from daily_metrics import BUSINESS_HOURS, EXCLUDE_ITEMS, MAIN_DISH_KEYWORDS, is_in_period, normalize_payment
-
-DB_PATH = "data/db/ichef.db"
+from metrics_common import DB_PATH, count_main_dishes, is_in_period, normalize_payment
 
 # def count_bowls(items_text: str) -> int:
 #     if not items_text or pd.isna(items_text):
@@ -12,12 +9,7 @@ DB_PATH = "data/db/ichef.db"
 #     return len([x for x in items_text.split(",") if x.strip()])
 
 def count_bowls(items_text: str) -> int:
-    if not items_text: return 0
-    items = items_text.split(",")
-    # 只要品項包含關鍵字，且不在排除清單內
-    count = sum(1 for it in items if any(k in it for k in MAIN_DISH_KEYWORDS) 
-                and not any(e in it for e in EXCLUDE_ITEMS))
-    return count
+    return count_main_dishes(items_text)
 
 def is_peak(hour_float: float) -> bool:
     return 12 <= hour_float < 13.5
@@ -201,4 +193,3 @@ if __name__ == "__main__":
         for i, (key, value) in enumerate(result.items(), start=1):
             print(f"{i}. {key}: {value}")
             # pass
-
