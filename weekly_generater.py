@@ -1,10 +1,14 @@
 import argparse
 import sqlite3
 import pandas as pd
-from datetime import datetime
-from daily_metrics import BUSINESS_HOURS, EXCLUDE_ITEMS, MAIN_DISH_KEYWORDS, is_in_period, normalize_payment
-
-DB_PATH = "data/db/ichef.db"
+from metrics_common import (
+    DB_PATH,
+    PROTEIN_RULES,
+    count_main_dishes,
+    count_protein_bowls,
+    is_in_period,
+    normalize_payment,
+)
 
 # def count_bowls(items_text: str) -> int:
 #     if not items_text or pd.isna(items_text):
@@ -12,12 +16,7 @@ DB_PATH = "data/db/ichef.db"
 #     return len([x for x in items_text.split(",") if x.strip()])
 
 def count_bowls(items_text: str) -> int:
-    if not items_text: return 0
-    items = items_text.split(",")
-    # 只要品項包含關鍵字，且不在排除清單內
-    count = sum(1 for it in items if any(k in it for k in MAIN_DISH_KEYWORDS) 
-                and not any(e in it for e in EXCLUDE_ITEMS))
-    return count
+    return count_main_dishes(items_text)
 
 def is_peak(hour_float: float) -> bool:
     return 12 <= hour_float < 13.5
@@ -135,6 +134,20 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
 
     high_value_orders = len(df[df["invoice_amount"] >= 200])
 
+    protein_bowls = {
+        protein: int(df["items_text"].apply(lambda text: count_protein_bowls(text, protein)).sum())
+        for protein in PROTEIN_RULES
+    }
+
+    protein_rank = sorted(protein_bowls.items(), key=lambda x: x[1], reverse=True)
+    first_protein = protein_rank[0][0] if len(protein_rank) >= 1 else None
+    first_protein_bowls = protein_rank[0][1] if len(protein_rank) >= 1 else 0
+    first_protein_ratio = first_protein_bowls / total_bowls if total_bowls else 0
+
+    second_protein = protein_rank[1][0] if len(protein_rank) >= 2 else None
+    second_protein_bowls = protein_rank[1][1] if len(protein_rank) >= 2 else 0
+    second_protein_ratio = second_protein_bowls / total_bowls if total_bowls else 0
+
     # ---------- 輸出 ----------
     return {
         "total_orders": total_orders,
@@ -183,6 +196,14 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
 
         "price_distribution": price_dist,
         "orders_ge_200": high_value_orders,
+
+        "protein_bowls": protein_bowls,
+        "first_protein": first_protein,
+        "first_protein_bowls": first_protein_bowls,
+        "first_protein_ratio": round(first_protein_ratio, 2),
+        "second_protein": second_protein,
+        "second_protein_bowls": second_protein_bowls,
+        "second_protein_ratio": round(second_protein_ratio, 2),
     }
 
 import pprint
@@ -201,4 +222,3 @@ if __name__ == "__main__":
         for i, (key, value) in enumerate(result.items(), start=1):
             print(f"{i}. {key}: {value}")
             # pass
-

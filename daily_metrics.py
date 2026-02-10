@@ -1,35 +1,16 @@
 import argparse
 import sqlite3
 import pandas as pd
-from datetime import datetime
+from metrics_common import (
+    BUSINESS_HOURS,
+    DB_PATH,
+    PROTEIN_RULES,
+    count_main_dishes,
+    count_protein_bowls,
+    is_in_period,
+    normalize_payment,
+)
 
-# --- 設定區：未來更動這裡即可 ---
-BUSINESS_HOURS = {
-    "lunch": {"start": "11:00", "end": "14:30"},
-    "dinner": {"start": "16:30", "end": "20:00"}
-}
-
-# 定義主餐關鍵字與排除清單
-MAIN_DISH_KEYWORDS = ["碗"]
-EXCLUDE_ITEMS = ["提袋", "加購"]
-# ----------------------------
-
-DB_PATH = "data/db/ichef.db"
-
-def is_in_period(dt, period_name):
-    """判斷時間是否在設定的營業時間內"""
-    start = pd.to_datetime(BUSINESS_HOURS[period_name]["start"]).time()
-    end = pd.to_datetime(BUSINESS_HOURS[period_name]["end"]).time()
-    return start <= dt.time() <= end
-
-def normalize_payment(p):
-    if not p:
-        return "Other"
-    if "現金" in p or "Cash" in p:
-        return "Cash"
-    if "Line" in p:
-        return "LinePay"
-    return "Other"
 
 def calculate_daily_metrics(target_date: str):
     conn = sqlite3.connect(DB_PATH)
@@ -66,30 +47,18 @@ def calculate_daily_metrics(target_date: str):
     df["hour"] = df["checkout_time"].dt.hour
 
     # 3. 計算碗數 (主餐數)
-    def get_main_dish_count(items_str):
-        if not items_str: return 0
-        items = items_str.split(",")
-        # 只要品項包含關鍵字，且不在排除清單內
-        count = sum(1 for it in items if any(k in it for k in MAIN_DISH_KEYWORDS) 
-                    and not any(e in it for e in EXCLUDE_ITEMS))
-        return count
-
-    df["dish_qty"] = df["items_text"].apply(get_main_dish_count)
+    df["dish_qty"] = df["items_text"].apply(count_main_dishes)
     total_dishes = df["dish_qty"].sum()
 
     # 4. 區分時段
     lunch_df = df[df["checkout_time"].apply(lambda x: is_in_period(x, "lunch"))]
     dinner_df = df[df["checkout_time"].apply(lambda x: is_in_period(x, "dinner"))]
-    lunch_orders = lunch_df.shape[0]
-    dinner_orders = dinner_df.shape[0]
 
     df["payment_type"] = df["payment_method"].apply(normalize_payment)
 
     # 5. 計算指標
     total_orders = len(df)
     total_revenue = df["invoice_amount"].sum()
-
-    aov = total_revenue / total_orders if total_orders else 0
 
     peak_hour_series = df.groupby(df["checkout_time"].dt.hour)["dish_qty"].sum()
     top_hours = peak_hour_series.nlargest(2)  # 取前兩名
@@ -99,6 +68,23 @@ def calculate_daily_metrics(target_date: str):
     second_peak_hour = top_hours.index[1]
     second_peak_hour_dishes = top_hours.iloc[1]
     second_peak_ratio = second_peak_hour_dishes / total_dishes if total_dishes else 0
+
+    # 蛋白質碗數統計（關鍵字 + 碗）
+    protein_bowls = {
+        protein: int(df["items_text"].apply(lambda text: count_protein_bowls(text, protein)).sum())
+        for protein in PROTEIN_RULES
+    }
+
+    protein_series = pd.Series(protein_bowls)
+    top_proteins = protein_series.sort_values(ascending=False).head(2)
+
+    first_protein = top_proteins.index[0] if len(top_proteins) >= 1 else None
+    first_protein_bowls = int(top_proteins.iloc[0]) if len(top_proteins) >= 1 else 0
+    first_protein_ratio = first_protein_bowls / total_dishes if total_dishes else 0
+
+    second_protein = top_proteins.index[1] if len(top_proteins) >= 2 else None
+    second_protein_bowls = int(top_proteins.iloc[1]) if len(top_proteins) >= 2 else 0
+    second_protein_ratio = second_protein_bowls / total_dishes if total_dishes else 0
 
     # 這裡建議改用精確匹配或定義映射表
     dine_in_mask = df["order_type"].isin(["Dine In", "內用"])
@@ -110,9 +96,6 @@ def calculate_daily_metrics(target_date: str):
     pay_in_LinePay = df[df["payment_type"].isin(["LinePay"])]
     pay_in_cash_order_ratio = pay_in_cash.shape[0] / total_orders
     pay_in_LinePay_order_ratio = pay_in_LinePay.shape[0] / total_orders
-
-    discount_orders = df[df["discount_amount"] > 0].shape[0]
-    discount_amount = df["discount_amount"].sum()
 
     cloud_kitchen_orders = df[df["order_source"].isin(["Online Store"])].shape[0]
     cloud_kitchen_ratio = cloud_kitchen_orders / total_orders
@@ -141,8 +124,15 @@ def calculate_daily_metrics(target_date: str):
             "second_peak_hour": f"{second_peak_hour}:00-{second_peak_hour+1}:00",
             "second_peak_hour_dishes": int(second_peak_hour_dishes) if not peak_hour_series.empty else 0,
             "second_peak_hour_ratio": round(second_peak_ratio, 2),
+            "protein_bowls": protein_bowls,
+            "first_protein": first_protein,
+            "first_protein_bowls": first_protein_bowls,
+            "first_protein_ratio": round(first_protein_ratio, 2),
+            "second_protein": second_protein,
+            "second_protein_bowls": second_protein_bowls,
+            "second_protein_ratio": round(second_protein_ratio, 2),
         },
-        "payments":{
+        "payments": {
             "pay_in_cash_order_ratio": round(pay_in_cash_order_ratio, 2),
             "pay_in_LinePay_order_ratio": round(pay_in_LinePay_order_ratio, 2),
         },
@@ -150,9 +140,11 @@ def calculate_daily_metrics(target_date: str):
             "employee_meal_rule": "invoice_amount == 0",
             "main_dish_rule": "item name contains '碗' and not in exclude list",
             "voided_rule": "order_status contains 'Voided'",
-            "business_hours_applied": BUSINESS_HOURS
-        }
+            "business_hours_applied": BUSINESS_HOURS,
+            "protein_rule": "(雞胸肉|豆腐|鮮蝦|鮭魚|鮪魚) + 碗",
+        },
     }
+
 
 from report_renderer import render_daily_report
 
