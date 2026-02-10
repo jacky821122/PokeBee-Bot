@@ -13,6 +13,16 @@ BOWLS_KEYWORDS = ["碗"]
 EXCLUDE_ITEMS = ["提袋", "加購"]
 # ----------------------------
 
+# 蛋白質辨識規則
+PROTEIN_RULES = {
+    "chicken": ["雞胸肉"],
+    "tofu": ["豆腐"],
+    "shrimp": ["鮮蝦"],
+    "salmon": ["鮭魚"],
+    "tuna": ["鮪魚"],
+}
+# ----------------------------
+
 DB_PATH = "data/db/ichef.db"
 
 def is_in_period(dt, period_name: str) -> bool:
@@ -30,20 +40,30 @@ def normalize_payment(payment_method: Optional[str]) -> str:
         return "LinePay"
     return "Other"
 
-def count_bowls(items_text: Optional[str], keywords: Optional[Iterable[str]] = None,
-                      exclude_items: Optional[Iterable[str]] = None) -> int:
+def _split_items(items_text: str):
     if not items_text:
-        return 0
+        return []
+    return [item.strip() for item in items_text.split(",") if item.strip()]
 
-    target_keywords = tuple(keywords or BOWLS_KEYWORDS)
-    excluded = tuple(exclude_items or EXCLUDE_ITEMS)
-    items = items_text.split(",")
+def _is_valid_bowl_item(item: str) -> bool:
+    return (
+        any(keyword in item for keyword in BOWLS_KEYWORDS)
+        and not any(excluded in item for excluded in EXCLUDE_ITEMS)
+    )
 
+def count_bowls(items_text: str) -> int:
+    items = _split_items(items_text)
+    return sum(1 for item in items if _is_valid_bowl_item(item))
+
+def count_protein_bowls(items_text: str, protein_key: str) -> int:
+    """計算指定蛋白質的碗數（需符合蛋白質關鍵字 + 碗，且排除非主餐項目）"""
+    required_keywords = PROTEIN_RULES[protein_key]
+    items = _split_items(items_text)
     return sum(
         1
         for item in items
-        if any(keyword in item for keyword in target_keywords)
-        and not any(exclude in item for exclude in excluded)
+        if _is_valid_bowl_item(item)
+        and all(keyword in item for keyword in required_keywords)
     )
 
 def load_orders(start_date: str, end_date: str, *, columns: list[str]) -> pd.DataFrame:

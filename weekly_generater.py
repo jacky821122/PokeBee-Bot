@@ -1,7 +1,9 @@
 import argparse
-
+import pandas as pd
 from metrics_common import (
+    PROTEIN_RULES,
     count_bowls, 
+    count_protein_bowls,
     is_in_period, 
     load_orders,
     normalize_payment,
@@ -120,6 +122,21 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
 
     high_value_orders = len(df[df["invoice_amount"] >= 200])
 
+    # 蛋白質碗數統計（關鍵字 + 碗）
+    protein_bowls = {
+        protein: int(df["items_text"].apply(lambda text: count_protein_bowls(text, protein)).sum())
+        for protein in PROTEIN_RULES
+    }
+
+    protein_rank = sorted(protein_bowls.items(), key=lambda x: x[1], reverse=True)
+    first_protein = protein_rank[0][0] if len(protein_rank) >= 1 else None
+    first_protein_bowls = protein_rank[0][1] if len(protein_rank) >= 1 else 0
+    first_protein_ratio = first_protein_bowls / total_bowls if total_bowls else 0
+
+    second_protein = protein_rank[1][0] if len(protein_rank) >= 2 else None
+    second_protein_bowls = protein_rank[1][1] if len(protein_rank) >= 2 else 0
+    second_protein_ratio = second_protein_bowls / total_bowls if total_bowls else 0
+
     # ---------- 輸出 ----------
     return {
         "total_orders": total_orders,
@@ -168,6 +185,14 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
 
         "price_distribution": price_dist,
         "orders_ge_200": high_value_orders,
+
+        "protein_bowls": protein_rank,
+        "first_protein": first_protein,
+        "first_protein_bowls": first_protein_bowls,
+        "first_protein_ratio": "{:.2f}%".format(first_protein_ratio * 100),
+        "second_protein": second_protein,
+        "second_protein_bowls": second_protein_bowls,
+        "second_protein_ratio": "{:.2f}%".format(second_protein_ratio * 100),
     }
 
 import pprint

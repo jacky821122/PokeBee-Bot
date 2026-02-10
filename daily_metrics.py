@@ -2,7 +2,9 @@ import argparse
 import pandas as pd
 from metrics_common import (
     BUSINESS_HOURS,
+    PROTEIN_RULES,
     count_bowls,
+    count_protein_bowls,
     is_in_period,
     load_orders,
     normalize_payment,
@@ -41,7 +43,7 @@ def calculate_daily_metrics(target_date: str):
 
     # 3. 計算碗數 (主餐數)
     df["bowls"] = df["items_text"].apply(count_bowls)
-    total_dishes = df["bowls"].sum()
+    total_bowls = df["bowls"].sum()
 
     # 4. 區分時段
     lunch_df = df[df["checkout_time"].apply(lambda x: is_in_period(x, "lunch"))]
@@ -60,17 +62,34 @@ def calculate_daily_metrics(target_date: str):
     peak_hour_series = df.groupby(df["checkout_time"].dt.hour)["bowls"].sum()
     top_hours = peak_hour_series.nlargest(2)  # 取前兩名
     first_peak_hour = top_hours.index[0]
-    first_peak_hour_dishes = top_hours.iloc[0]
-    first_peak_ratio = first_peak_hour_dishes / total_dishes if total_dishes else 0
+    first_peak_hour_bowls = top_hours.iloc[0]
+    first_peak_ratio = first_peak_hour_bowls / total_bowls if total_bowls else 0
     second_peak_hour = top_hours.index[1]
-    second_peak_hour_dishes = top_hours.iloc[1]
-    second_peak_ratio = second_peak_hour_dishes / total_dishes if total_dishes else 0
+    second_peak_hour_bowls = top_hours.iloc[1]
+    second_peak_ratio = second_peak_hour_bowls / total_bowls if total_bowls else 0
+
+    # 蛋白質碗數統計（關鍵字 + 碗）
+    protein_bowls = {
+        protein: int(df["items_text"].apply(lambda text: count_protein_bowls(text, protein)).sum())
+        for protein in PROTEIN_RULES
+    }
+
+    protein_series = pd.Series(protein_bowls)
+    top_proteins = protein_series.sort_values(ascending=False).head(2)
+
+    first_protein = top_proteins.index[0] if len(top_proteins) >= 1 else None
+    first_protein_bowls = int(top_proteins.iloc[0]) if len(top_proteins) >= 1 else 0
+    first_protein_ratio = first_protein_bowls / total_bowls if total_bowls else 0
+
+    second_protein = top_proteins.index[1] if len(top_proteins) >= 2 else None
+    second_protein_bowls = int(top_proteins.iloc[1]) if len(top_proteins) >= 2 else 0
+    second_protein_ratio = second_protein_bowls / total_bowls if total_bowls else 0
 
     # 這裡建議改用精確匹配或定義映射表
     dine_in_mask = df["order_type"].isin(["Dine In", "內用"])
     takeout_mask = df["order_type"].isin(["Takeout", "外帶", "Delivery", "外送"])
-    dine_in_dishes = df[dine_in_mask]["bowls"].sum()
-    takeout_dishes = df[takeout_mask]["bowls"].sum()
+    dine_in_bowls = df[dine_in_mask]["bowls"].sum()
+    takeout_bowls = df[takeout_mask]["bowls"].sum()
 
     pay_in_cash = df[df["payment_type"].isin(["Cash"])]
     pay_in_LinePay = df[df["payment_type"].isin(["LinePay"])]
@@ -89,24 +108,31 @@ def calculate_daily_metrics(target_date: str):
             "revenue": round(total_revenue, 2),
             "unit": "bowl",
             "total_orders": total_orders,
-            "total_dishes": int(total_dishes),
-            "avg_dish_price": round(total_revenue / total_dishes, 2) if total_dishes else 0,
-            "dine_in_dishes": dine_in_dishes,
-            "takeout_dishes": takeout_dishes,
+            "total_bowls": int(total_bowls),
+            "avg_bowl_price": round(total_revenue / total_bowls, 2) if total_bowls else 0,
+            "dine_in_bowls": dine_in_bowls,
+            "takeout_bowls": takeout_bowls,
             "cloud_kitchen_orders": cloud_kitchen_orders,
             "cloud_kitchen_ratio": '{:.2f}%'.format(cloud_kitchen_ratio * 100),
         },
         "periods": {
-            "lunch_dishes": int(lunch_df["bowls"].sum()),
-            "dinner_dishes": int(dinner_df["bowls"].sum()),
+            "lunch_bowls": int(lunch_df["bowls"].sum()),
+            "dinner_bowls": int(dinner_df["bowls"].sum()),
         },
         "operational": {
             "first_peak_hour": f"{first_peak_hour}:00-{first_peak_hour+1}:00",
-            "first_peak_hour_dishes": int(first_peak_hour_dishes) if not peak_hour_series.empty else 0,
+            "first_peak_hour_bowls": int(first_peak_hour_bowls) if not peak_hour_series.empty else 0,
             "first_peak_hour_ratio": round(first_peak_ratio, 2),
             "second_peak_hour": f"{second_peak_hour}:00-{second_peak_hour+1}:00",
-            "second_peak_hour_dishes": int(second_peak_hour_dishes) if not peak_hour_series.empty else 0,
+            "second_peak_hour_bowls": int(second_peak_hour_bowls) if not peak_hour_series.empty else 0,
             "second_peak_hour_ratio": round(second_peak_ratio, 2),
+            "protein_bowls": protein_series.sort_values(ascending=False).to_dict(),
+            "first_protein": first_protein,
+            "first_protein_bowls": first_protein_bowls,
+            "first_protein_ratio": round(first_protein_ratio, 2),
+            "second_protein": second_protein,
+            "second_protein_bowls": second_protein_bowls,
+            "second_protein_ratio": round(second_protein_ratio, 2),
         },
         "payments": {
             "pay_in_cash_order_ratio": round(pay_in_cash_order_ratio, 2),
@@ -114,7 +140,7 @@ def calculate_daily_metrics(target_date: str):
         },
         "assumptions": {
             "employee_meal_rule": "invoice_amount == 0",
-            "main_dish_rule": "item name contains '碗' and not in exclude list",
+            "bowl_rule": "item name contains '碗' and not in exclude list",
             "voided_rule": "order_status contains 'Voided'",
             "business_hours_applied": BUSINESS_HOURS
         }

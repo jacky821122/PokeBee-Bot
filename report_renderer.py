@@ -27,27 +27,27 @@ def render_daily_report(report: Dict) -> str:
     payments = report.get("payments", {})
 
     revenue = metrics.get("revenue", 0)
-    total_dishes = metrics.get("total_dishes", 0)
-    avg_dish_price = metrics.get("avg_dish_price", 0)
+    total_bowls = metrics.get("total_bowls", 0)
+    avg_bowl_price = metrics.get("avg_bowl_price", 0)
 
-    dine_in = metrics.get("dine_in_dishes", 0)
-    takeout = metrics.get("takeout_dishes", 0)
+    dine_in = metrics.get("dine_in_bowls", 0)
+    takeout = metrics.get("takeout_bowls", 0)
 
-    lunch = periods.get("lunch_dishes", 0)
-    dinner = periods.get("dinner_dishes", 0)
+    lunch = periods.get("lunch_bowls", 0)
+    dinner = periods.get("dinner_bowls", 0)
 
     first_peak_hour = operational.get("first_peak_hour", "--")
-    first_peak_dishes = operational.get("first_peak_hour_dishes", 0)
+    first_peak_bowls = operational.get("first_peak_hour_bowls", 0)
     first_peak_ratio = operational.get("first_peak_hour_ratio", 0)
     second_peak_hour = operational.get("second_peak_hour", "--")
-    second_peak_dishes = operational.get("second_peak_hour_dishes", 0)
+    second_peak_bowls = operational.get("second_peak_hour_bowls", 0)
     second_peak_ratio = operational.get("second_peak_hour_ratio", 0)
 
     pay_in_cash_order_ratio = payments.get("pay_in_cash_order_ratio", 0)
     pay_in_LinePay_order_ratio = payments.get("pay_in_LinePay_order_ratio", 0)
 
-    dine_in_pct = _fmt_percent(dine_in, total_dishes)
-    takeout_pct = _fmt_percent(takeout, total_dishes)
+    dine_in_pct = _fmt_percent(dine_in, total_bowls)
+    takeout_pct = _fmt_percent(takeout, total_bowls)
     first_peak_ratio_pct = f"{round(first_peak_ratio * 100)}%"
     second_peak_ratio_pct = f"{round(second_peak_ratio * 100)}%"
     pay_in_cash_order_ratio_pct = f"{round(pay_in_cash_order_ratio * 100)}%"
@@ -62,8 +62,8 @@ def render_daily_report(report: Dict) -> str:
     # Revenue summary
     lines.append("💰 營收概況")
     lines.append(f"・總營收：{_fmt_currency(revenue)}")
-    lines.append(f"・總出碗數：{total_dishes} 碗")
-    lines.append(f"・平均單碗收入：{_fmt_currency(avg_dish_price)}")
+    lines.append(f"・總出碗數：{total_bowls} 碗")
+    lines.append(f"・平均單碗收入：{_fmt_currency(avg_bowl_price)}")
     lines.append("")
 
     # Dish structure
@@ -80,9 +80,9 @@ def render_daily_report(report: Dict) -> str:
 
     # Operational rhythm
     lines.append("🔥 營運節奏")
-    lines.append(f"・{first_peak_hour}：{first_peak_dishes} 碗({first_peak_ratio_pct})")
-    lines.append(f"・{second_peak_hour}：{second_peak_dishes} 碗({second_peak_ratio_pct})")
-    # lines.append(f"・尖峰出碗：{peak_dishes} 碗")
+    lines.append(f"・{first_peak_hour}：{first_peak_bowls} 碗({first_peak_ratio_pct})")
+    lines.append(f"・{second_peak_hour}：{second_peak_bowls} 碗({second_peak_ratio_pct})")
+    # lines.append(f"・尖峰出碗：{peak_bowls} 碗")
     lines.append("")
 
     # Payment
