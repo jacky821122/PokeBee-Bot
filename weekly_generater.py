@@ -1,50 +1,43 @@
 import argparse
-import sqlite3
-import pandas as pd
-from metrics_common import DB_PATH, count_main_dishes, is_in_period, normalize_payment
 
-# def count_bowls(items_text: str) -> int:
-#     if not items_text or pd.isna(items_text):
-#         return 0
-#     return len([x for x in items_text.split(",") if x.strip()])
-
-def count_bowls(items_text: str) -> int:
-    return count_main_dishes(items_text)
+from metrics_common import (
+    count_bowls, 
+    is_in_period, 
+    load_orders,
+    normalize_payment,
+    preprocess_orders,
+)
 
 def is_peak(hour_float: float) -> bool:
     return 12 <= hour_float < 13.5
 
-
 def calculate_weekly_metrics(start_date: str, end_date: str):
-    conn = sqlite3.connect(DB_PATH)
+    df = load_orders(
+        start_date,
+        end_date,
+        columns=[
+            "checkout_time",
+            "order_source",
+            "order_type",
+            "invoice_amount",
+            "payment_method",
+            "order_status",
+            "items_text",
+        ],
+    )
 
-    query = """
-        SELECT
-            checkout_time,
-            order_source,
-            order_type,
-            invoice_amount,
-            payment_method,
-            order_status,
-            items_text
-        FROM raw_orders
-        WHERE checkout_time >= ?
-          AND checkout_time < date(?, '+1 day')
-          AND order_status NOT LIKE '%Voided%'
-    """
-
-    df = pd.read_sql_query(query, conn, params=(start_date, end_date))
-    conn.close()
+    if df.empty:
+        return None
 
     # ---------- 基本前處理 ----------
     # 1. 過濾員工餐與無效訂單
     # 邏輯：排除金額為 0 的訂單（視為員工餐或公關單）
-    df = df[df["invoice_amount"] > 0].copy()
+    df = preprocess_orders(df)
+    if df.empty:
+        return None
 
-    df["checkout_time"] = pd.to_datetime(df["checkout_time"])
     df["date"] = df["checkout_time"].dt.date
     df["hour"] = df["checkout_time"].dt.hour + df["checkout_time"].dt.minute / 60
-    # df["dish_qty"] = df["items_text"].apply(count_bowls)
     df["bowls"] = df["items_text"].apply(count_bowls)
     df["is_peak"] = df["hour"].apply(is_peak)
 
