@@ -1,35 +1,13 @@
 import argparse
 import sqlite3
 import pandas as pd
-from datetime import datetime
-
-# --- 設定區：未來更動這裡即可 ---
-BUSINESS_HOURS = {
-    "lunch": {"start": "11:00", "end": "14:30"},
-    "dinner": {"start": "16:30", "end": "20:00"}
-}
-
-# 定義主餐關鍵字與排除清單
-MAIN_DISH_KEYWORDS = ["碗"]
-EXCLUDE_ITEMS = ["提袋", "加購"]
-# ----------------------------
-
-DB_PATH = "data/db/ichef.db"
-
-def is_in_period(dt, period_name):
-    """判斷時間是否在設定的營業時間內"""
-    start = pd.to_datetime(BUSINESS_HOURS[period_name]["start"]).time()
-    end = pd.to_datetime(BUSINESS_HOURS[period_name]["end"]).time()
-    return start <= dt.time() <= end
-
-def normalize_payment(p):
-    if not p:
-        return "Other"
-    if "現金" in p or "Cash" in p:
-        return "Cash"
-    if "Line" in p:
-        return "LinePay"
-    return "Other"
+from metrics_common import (
+    BUSINESS_HOURS,
+    DB_PATH,
+    count_main_dishes,
+    is_in_period,
+    normalize_payment,
+)
 
 def calculate_daily_metrics(target_date: str):
     conn = sqlite3.connect(DB_PATH)
@@ -66,15 +44,7 @@ def calculate_daily_metrics(target_date: str):
     df["hour"] = df["checkout_time"].dt.hour
 
     # 3. 計算碗數 (主餐數)
-    def get_main_dish_count(items_str):
-        if not items_str: return 0
-        items = items_str.split(",")
-        # 只要品項包含關鍵字，且不在排除清單內
-        count = sum(1 for it in items if any(k in it for k in MAIN_DISH_KEYWORDS) 
-                    and not any(e in it for e in EXCLUDE_ITEMS))
-        return count
-
-    df["dish_qty"] = df["items_text"].apply(get_main_dish_count)
+    df["dish_qty"] = df["items_text"].apply(count_main_dishes)
     total_dishes = df["dish_qty"].sum()
 
     # 4. 區分時段
