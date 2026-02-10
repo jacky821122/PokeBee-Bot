@@ -1,0 +1,121 @@
+{
+  "report_type": "daily_dish_report",
+  "version": "v1",
+  "primary_unit": "dish",
+  "sections": [
+    "revenue_summary",
+    "dish_structure",
+    "period_performance",
+    "operational_rhythm"
+  ],
+  "excluded_sections": [
+    "payment_method",
+    "discount_analysis",
+    "7_day_comparison"
+  ],
+  "brand": "PokeBee",
+  "date": "YYYY-MM-DD",
+  "weekday": "Mon",
+
+  "core_metrics": {
+    "total_orders": {
+      "value": null,
+      "unit": "orders"
+    },
+    "revenue": {
+      "value": null,
+      "currency": "TWD"
+    },
+    "average_order_value": {
+      "value": null,
+      "currency": "TWD"
+    }
+  },
+
+  "time_distribution": {
+    "lunch": {
+      "time_range": "11:00-14:00",
+      "orders": null,
+      "percentage": null
+    },
+    "dinner": {
+      "time_range": "17:00-20:00",
+      "orders": null,
+      "percentage": null
+    },
+    "peak_hour": {
+      "time_range": "HH:00-HH+1:00",
+      "orders": null
+    }
+  },
+
+  "order_structure": {
+    "order_type": {
+      "dine_in": {
+        "orders": null,
+        "percentage": null
+      },
+      "takeout": {
+        "orders": null,
+        "percentage": null
+      }
+    },
+    "order_source": {
+      "on_site": {
+        "orders": null,
+        "percentage": null
+      },
+      "delivery": {
+        "orders": null,
+        "percentage": null
+      }
+    }
+  },
+
+  "payment_methods": [
+    {
+      "method": "Cash",
+      "orders": null,
+      "percentage": null
+    },
+    {
+      "method": "LinePay",
+      "orders": null,
+      "percentage": null
+    }
+  ],
+
+  "discounts": {
+    "orders_with_discount": {
+      "orders": null,
+      "percentage": null
+    },
+    "discount_amount": {
+      "value": null,
+      "currency": "TWD"
+    },
+    "discount_ratio_to_revenue": {
+      "percentage": null
+    }
+  },
+
+  "comparison": {
+    "reference_period": "7_day_average",
+    "order_change_percentage": null,
+    "aov_change_percentage": null
+  },
+
+  "alerts": [
+    {
+      "level": "info | warning | critical",
+      "message": "string"
+    }
+  ],
+
+  "generation_metadata": {
+    "data_source": "iCHEF_CSV",
+    "data_last_updated": "YYYY-MM-DD HH:MM",
+    "generated_at": "YYYY-MM-DD HH:MM",
+    "confidence": "high | medium | low"
+  }
+}

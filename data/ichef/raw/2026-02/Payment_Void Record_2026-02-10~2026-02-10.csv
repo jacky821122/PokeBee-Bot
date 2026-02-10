@@ -1,0 +1,15 @@
+,Receipt number,Carrier/Donation Code,payment time,Running Receipt Number,Order No.,Order source,Order Type,Table,Service Charge,Delivery fee,Discount amount,Invoice Amount,Payment Module,Cash Book,Payment Detail,Payment Notes,Current Status,Customer Name,customer phone number,Order Tags & Notes,items,Buyer,Buyer's phone
+0,#-00000302,--,2026/02/10 11:22:07,1,E7077,Online Store,Takeout,--,0,--,26,234,LinePay (未整合)(Custom payment module),Main Cash Book,Customer Paid:234 Change:--,--,Issued,--,--,--,嚴選生鮭魚自選碗 $234.0,呂映璇,0955860668
+1,#-00000303,--,2026/02/10 11:25:12,2,43394,Online Store,Takeout,--,0,--,23,207,現金(Cash payment module),Main Cash Book,Customer Paid:207 Change:--,--,Issued,陳奕賢,0901110927,--,雞胸肉自選碗 $207.0,翁,0901110927
+2,#-00000304,--,2026/02/10 12:15:33,3,EFE80,Online Store,Takeout,--,0,--,15,135,LinePay (未整合)(Custom payment module),Main Cash Book,Customer Paid:135 Change:--,--,Issued,--,--,--,雞胸肉自選碗 $135.0,Iris,0934366222
+3,#-00000305,--,2026/02/10 12:15:56,4,84AFE,Online Store,Takeout,--,0,--,15,135,LinePay (未整合)(Custom payment module),Main Cash Book,Customer Paid:135 Change:--,--,Issued,--,--,--,雞胸肉自選碗 $135.0,張芩瑜,0970967521
+4,#-00000306,--,2026/02/10 12:27:51,5,BADD3,Online Store,Takeout,--,0,--,40,360,LinePay (未整合)(Custom payment module),Main Cash Book,Customer Paid:360 Change:--,--,Issued,--,--,--,"雞胸肉自選碗 $135.0,嚴選生鮭魚自選碗 $225.0",鄧生智,0911400785
+5,#-00000307,--,2026/02/10 12:38:10,6,--,On site,Takeout,--,0,--,15,135,現金(Cash payment module),Main Cash Book,Customer Paid:135 Change:--,--,Issued,--,--,--,雞胸肉自選碗 $135.0,--,--
+6,#-00000308,--,2026/02/10 12:44:24,7,--,On site,Takeout,--,0,--,15,135,LinePay (未整合)(Custom payment module),Main Cash Book,Customer Paid:135 Change:--,--,Issued,--,--,--,雞胸肉自選碗 $135.0,--,--
+7,#-00000309,--,2026/02/10 12:50:25,8,--,On site,Takeout,--,0,--,15,135,LinePay (未整合)(Custom payment module),Main Cash Book,Customer Paid:135 Change:--,--,Issued,--,--,--,雞胸肉自選碗 $135.0,--,--
+8,#-00000310,--,2026/02/10 12:59:17,9,--,On site,Takeout,--,0,--,15,135,現金(Cash payment module),Main Cash Book,Customer Paid:135 Change:--,--,Issued,--,--,--,雞胸肉自選碗 $135.0,--,--
+9,#-00000311,--,2026/02/10 13:22:38,10,9CA4F,Online Store,Takeout,--,0,--,30,270,LinePay (未整合)(Custom payment module),Main Cash Book,Customer Paid:270 Change:--,--,Issued,--,--,--,"雞胸肉自選碗 $135.0,雞胸肉自選碗 $135.0",許定綸,0930635120
+10,#-00000312,--,2026/02/10 13:26:45,11,3B147,Online Store,Takeout,--,0,--,34,306,LinePay (未整合)(Custom payment module),Main Cash Book,Customer Paid:306 Change:--,--,Issued,--,--,--,"嚴選生鮭魚自選碗 $171.0,雞胸肉自選碗 $135.0",梁,0900580332
+11,#-00000313,--,2026/02/10 13:53:23,12,--,On site,Takeout,--,0,--,19,171,現金(Cash payment module),Main Cash Book,Customer Paid:171 Change:--,--,Issued,--,--,--,嚴選生鮭魚自選碗 $171.0,--,--
+12,#-00000314,--,2026/02/10 13:57:02,13,--,On site,Takeout,--,0,--,150,0,現金(Cash payment module),Main Cash Book,Customer Paid:-- Change:--,--,Issued,--,--,--,員工餐 $0.0,--,--
+13,#-00000315,--,2026/02/10 13:58:26,14,--,On site,Takeout,--,0,--,17,155,現金(Cash payment module),Main Cash Book,Customer Paid:155 Change:--,--,Issued,--,--,--,"提袋 $2.0,鮮蝦自選碗 $153.0",--,--
