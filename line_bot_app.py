@@ -111,6 +111,9 @@ def handle_file_message(event):
     if not (
         file_name.startswith("Payment_Void Record_")
         and file_name.endswith(".csv")
+    ) and not (
+        file_name.startswith("modifier")
+        and file_name.endswith(".csv")
     ):
         line_bot_api.reply_message(
             event.reply_token,
@@ -134,7 +137,11 @@ def handle_file_message(event):
     # 5. 呼叫 import
     try:
         from import_csv import import_csv  # 依你實際檔名調整
-        result = import_csv(str(save_path))
+        from import_modifier_csv import import_modifier_csv
+        if file_name.startswith("Payment"):
+            result = import_csv(str(save_path))
+        elif file_name.startswith("modifier"):
+            result = import_modifier_csv(str(save_path))
     except Exception as e:
         line_bot_api.reply_message(
             event.reply_token,

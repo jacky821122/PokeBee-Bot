@@ -2,10 +2,13 @@ import argparse
 import pandas as pd
 from metrics_common import (
     PROTEIN_RULES,
+    PROTEIN_KEYWORDS,
     count_bowls, 
     count_protein_bowls,
+    count_protein_from_modifiers,
     is_in_period, 
     load_orders,
+    load_modifier,
     normalize_payment,
     preprocess_orders,
 )
@@ -128,14 +131,33 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
         for protein in PROTEIN_RULES
     }
 
-    protein_rank = sorted(protein_bowls.items(), key=lambda x: x[1], reverse=True)
+    # 碗數與蛋白質數不相等，如 "高蛋白健身碗"/"清爽佛陀碗"
+    # print(df[df["items_text"].apply(lambda x: not any(keyword in x for keyword in PROTEIN_KEYWORDS))]["items_text"])
+
+    # 處理加註部分
+    df_modifier = load_modifier(start_date, end_date)
+    protein_adds = {
+        category: int(df_modifier[df_modifier['name'].str.contains('|'.join(keywords))]['count'].sum())
+        for category, keywords in PROTEIN_RULES.items()
+    }
+    protein_bowls_series = pd.Series(protein_bowls)
+    protein_adds_series = pd.Series(protein_adds)
+    total_protein_bowls = protein_bowls_series.sum()
+    total_protein_adds = protein_adds_series.sum()
+
+    protein_events = protein_bowls_series.add(protein_adds_series, fill_value=0).to_dict()
+    total_protein_count = total_protein_bowls + total_protein_adds
+
+    protein_bowls_rank = sorted(protein_bowls.items(), key=lambda x: x[1], reverse=True)
+    protein_adds_rank = sorted(protein_adds.items(), key=lambda x: x[1], reverse=True)
+    protein_rank = sorted(protein_events.items(), key=lambda x: x[1], reverse=True)
     first_protein = protein_rank[0][0] if len(protein_rank) >= 1 else None
     first_protein_bowls = protein_rank[0][1] if len(protein_rank) >= 1 else 0
-    first_protein_ratio = first_protein_bowls / total_bowls if total_bowls else 0
+    first_protein_ratio = first_protein_bowls / total_protein_count if total_protein_count else 0
 
     second_protein = protein_rank[1][0] if len(protein_rank) >= 2 else None
     second_protein_bowls = protein_rank[1][1] if len(protein_rank) >= 2 else 0
-    second_protein_ratio = second_protein_bowls / total_bowls if total_bowls else 0
+    second_protein_ratio = second_protein_bowls / total_protein_count if total_protein_count else 0
 
     # ---------- 輸出 ----------
     return {
@@ -186,7 +208,9 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
         "price_distribution": price_dist,
         "orders_ge_200": high_value_orders,
 
-        "protein_bowls": protein_rank,
+        "protein_bowls": protein_bowls_rank,
+        "protein_adds": protein_adds_rank,
+        "protein_events": protein_rank,
         "first_protein": first_protein,
         "first_protein_bowls": first_protein_bowls,
         "first_protein_ratio": "{:.2f}%".format(first_protein_ratio * 100),

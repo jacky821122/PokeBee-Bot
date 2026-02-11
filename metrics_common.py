@@ -21,6 +21,7 @@ PROTEIN_RULES = {
     "salmon": ["鮭魚"],
     "tuna": ["鮪魚"],
 }
+PROTEIN_KEYWORDS = [keyword for sublist in PROTEIN_RULES.values() for keyword in sublist]
 # ----------------------------
 
 DB_PATH = "data/db/ichef.db"
@@ -66,6 +67,10 @@ def count_protein_bowls(items_text: str, protein_key: str) -> int:
         and all(keyword in item for keyword in required_keywords)
     )
 
+def count_protein_from_modifiers(name: str, protein_key: str) -> int:
+    required_keywords = PROTEIN_RULES[protein_key]
+    return 1 if all(keyword in name for keyword in required_keywords) else 0
+
 def load_orders(start_date: str, end_date: str, *, columns: list[str]) -> pd.DataFrame:
     """
     載入日期區間內訂單，並先行過濾作廢單。
@@ -81,6 +86,20 @@ def load_orders(start_date: str, end_date: str, *, columns: list[str]) -> pd.Dat
         WHERE checkout_time >= ?
           AND checkout_time < date(?, '+1 day')
           AND order_status NOT LIKE '%Voided%'
+    """
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        return pd.read_sql_query(query, conn, params=(start_date, end_date))
+    finally:
+        conn.close()
+
+def load_modifier(start_date: str, end_date: str) -> pd.DataFrame:
+    query = f"""
+        SELECT name, count
+        FROM modifier_summary
+        WHERE NOT (end_date < ? OR start_date > ?)
+        GROUP BY name;
     """
 
     conn = sqlite3.connect(DB_PATH)
