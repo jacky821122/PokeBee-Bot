@@ -1,7 +1,11 @@
 # PokeBee-Bot
 
 ## Start line bot
-`python line_bot_app.py`
+```sh
+python line_bot_app.py
+```
 
 ## Start ngrok
-`ngrok_start`
+```sh
+ngrok_start
+```
