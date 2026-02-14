@@ -24,6 +24,13 @@ PROTEIN_RULES = {
 PROTEIN_KEYWORDS = [keyword for sublist in PROTEIN_RULES.values() for keyword in sublist]
 # ----------------------------
 
+SET_MEAL_RULES = {
+    "經典均衡碗": {"chicken": 1},
+    "高蛋白健身碗": {"chicken": 2},
+    "清爽佛陀碗": {"tofu": 1},
+    "海味雙魚碗": {"salmon": 1, "tuna": 1},
+}
+
 DB_PATH = "data/db/ichef.db"
 
 def is_in_period(dt, period_name: str) -> bool:
@@ -56,6 +63,10 @@ def count_bowls(items_text: str) -> int:
     items = _split_items(items_text)
     return sum(1 for item in items if _is_valid_bowl_item(item))
 
+def filter_protein_bowls(items_text: str) -> list[str]:
+    items = _split_items(items_text)
+    return [item for item in items if _is_valid_bowl_item(item) and any(keyword in item for keyword in PROTEIN_KEYWORDS)]
+
 def count_protein_bowls(items_text: str, protein_key: str) -> int:
     """計算指定蛋白質的碗數（需符合蛋白質關鍵字 + 碗，且排除非主餐項目）"""
     required_keywords = PROTEIN_RULES[protein_key]
@@ -66,6 +77,36 @@ def count_protein_bowls(items_text: str, protein_key: str) -> int:
         if _is_valid_bowl_item(item)
         and all(keyword in item for keyword in required_keywords)
     )
+
+def filter_protein_non_bowls(items_text: str) -> list[str]:
+    items = _split_items(items_text)
+    return [
+        item
+        for item in items
+        if not _is_valid_bowl_item(item)
+        and any(keyword in item for keyword in PROTEIN_KEYWORDS)
+    ]
+
+def count_protein_non_bowls(items_text: str, protein_key: str) -> int:
+    required_keywords = PROTEIN_RULES[protein_key]
+    items = _split_items(items_text)
+    return sum(
+        1
+        for item in items
+        if not _is_valid_bowl_item(item)
+        and all(keyword in item for keyword in required_keywords)
+    )
+
+def count_set_meal_proteins(items_text: str) -> dict[str, int]:
+    items = _split_items(items_text)
+    protein_counts = {protein: 0 for protein in PROTEIN_RULES}  # 初始化
+    
+    for item in items:
+        for meal_name, protein_map in SET_MEAL_RULES.items():
+            if meal_name in item:
+                for protein, qty in protein_map.items():
+                    protein_counts[protein] += qty
+    return protein_counts
 
 def count_protein_from_modifiers(name: str, protein_key: str) -> int:
     required_keywords = PROTEIN_RULES[protein_key]

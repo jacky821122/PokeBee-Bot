@@ -1,17 +1,7 @@
 import argparse
 import pandas as pd
-from metrics_common import (
-    PROTEIN_RULES,
-    PROTEIN_KEYWORDS,
-    count_bowls, 
-    count_protein_bowls,
-    count_protein_from_modifiers,
-    is_in_period, 
-    load_orders,
-    load_modifier,
-    normalize_payment,
-    preprocess_orders,
-)
+from metrics_common import *
+from report_renderer import render_weekly_report
 
 def is_peak(hour_float: float) -> bool:
     return 12 <= hour_float < 13.5
@@ -63,6 +53,9 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
         "2_bowl_revenue": df[df["bowls"] == 2]["invoice_amount"].sum(),
         "3plus_bowl_revenue": df[df["bowls"] >= 3]["invoice_amount"].sum(),
     }
+
+    # ---------- 每碗均價 ----------
+    avg_bowl_price = "{:.0f}".format(total_revenue / total_bowls if total_bowls != 0 else 0)
 
     # ---------- 時段切片 ----------
     hourly_orders = df.groupby(df["checkout_time"].dt.hour).size().to_dict()
@@ -126,8 +119,27 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
     high_value_orders = len(df[df["invoice_amount"] >= 200])
 
     # 蛋白質碗數統計（關鍵字 + 碗）
+    df["protein_bowls"] = df["items_text"].apply(filter_protein_bowls)
     protein_bowls = {
         protein: int(df["items_text"].apply(lambda text: count_protein_bowls(text, protein)).sum())
+        for protein in PROTEIN_RULES
+    }
+
+    df["protein_non_bowls"] = df["items_text"].apply(filter_protein_non_bowls)
+    protein_non_bowls = {
+        protein: int(df["items_text"].apply(lambda text: count_protein_non_bowls(text, protein)).sum())
+        for protein in PROTEIN_RULES
+    }
+
+    # protein_set_meals = {
+    #     protein: int(
+    #         df["items_text"].apply(lambda text: count_set_meal_proteins(text).get(protein, 0)).sum()
+    #     )
+    #     for protein in PROTEIN_RULES
+    # }
+    df["set_meal_proteins"] = df["items_text"].apply(count_set_meal_proteins)
+    protein_set_meals = {
+        protein: int(df["set_meal_proteins"].apply(lambda d: d.get(protein, 0)).sum())
         for protein in PROTEIN_RULES
     }
 
@@ -140,17 +152,41 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
         category: int(df_modifier[df_modifier['name'].str.contains('|'.join(keywords))]['count'].sum())
         for category, keywords in PROTEIN_RULES.items()
     }
-    protein_bowls_series = pd.Series(protein_bowls)
-    protein_adds_series = pd.Series(protein_adds)
-    total_protein_bowls = protein_bowls_series.sum()
-    total_protein_adds = protein_adds_series.sum()
 
-    protein_events = protein_bowls_series.add(protein_adds_series, fill_value=0).to_dict()
-    total_protein_count = total_protein_bowls + total_protein_adds
+    # 各來源的 dict 結果
+    protein_sources = {
+        "bowls": protein_bowls,
+        "adds": protein_adds,
+        "non_bowls": protein_non_bowls,
+        "set_meals": protein_set_meals,
+    }
 
-    protein_bowls_rank = sorted(protein_bowls.items(), key=lambda x: x[1], reverse=True)
-    protein_adds_rank = sorted(protein_adds.items(), key=lambda x: x[1], reverse=True)
+    # 轉成 Series
+    protein_series = {name: pd.Series(data) for name, data in protein_sources.items()}
+
+    # 各來源總和
+    protein_totals = {name: series.sum() for name, series in protein_series.items()}
+
+    selected_sources = ["bowls", "adds"]
+    selected_sources = [name for name, data in protein_sources.items()]
+    protein_events = (
+        pd.concat([protein_series[name] for name in selected_sources], axis=1)
+        .sum(axis=1)
+        .to_dict()
+    )
+
+    # 合併所有來源的蛋白質份數
+    # protein_events = (
+    #     pd.concat(protein_series.values(), axis=1)
+    #     .sum(axis=1)
+    #     .to_dict()
+    # )
+    total_protein_count = sum(protein_totals.values())
+
+    protein_sources_ranks = {name: sorted(data.items(), key=lambda x: x[1], reverse=True) for name, data in protein_sources.items()}
     protein_rank = sorted(protein_events.items(), key=lambda x: x[1], reverse=True)
+    protein_rank_ratio = sorted({k: round(v / total_protein_count * 100, 2) for k, v in protein_events.items()}.items(), key=lambda x: x[1], reverse=True)
+    
     first_protein = protein_rank[0][0] if len(protein_rank) >= 1 else None
     first_protein_bowls = protein_rank[0][1] if len(protein_rank) >= 1 else 0
     first_protein_ratio = first_protein_bowls / total_protein_count if total_protein_count else 0
@@ -161,9 +197,12 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
 
     # ---------- 輸出 ----------
     return {
+        "start_date": start_date,
+        "end_date": end_date,
         "total_orders": total_orders,
         "total_bowls": total_bowls,
         "total_revenue": total_revenue,
+        "avg_bowl_price": avg_bowl_price,
 
         **bowl_dist,
         **bowl_revenue,
@@ -208,9 +247,13 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
         "price_distribution": price_dist,
         "orders_ge_200": high_value_orders,
 
-        "protein_bowls": protein_bowls_rank,
-        "protein_adds": protein_adds_rank,
+        "protein_bowls": protein_sources_ranks["bowls"],
+        "protein_adds": protein_sources_ranks["adds"],
+        "protein_non_bowls": protein_sources_ranks["non_bowls"],
+        "protein_set_meals": protein_sources_ranks["set_meals"],
+        "protein_events_dict": protein_events,
         "protein_events": protein_rank,
+        "protein_events_ratio": protein_rank_ratio,
         "first_protein": first_protein,
         "first_protein_bowls": first_protein_bowls,
         "first_protein_ratio": "{:.2f}%".format(first_protein_ratio * 100),
@@ -235,3 +278,5 @@ if __name__ == "__main__":
         for i, (key, value) in enumerate(result.items(), start=1):
             print(f"{i}. {key}: {value}")
             # pass
+        print("")
+        print(render_weekly_report(result))

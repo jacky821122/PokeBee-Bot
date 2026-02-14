@@ -1,5 +1,5 @@
 from typing import Dict
-
+from metrics_common import PROTEIN_RULES
 
 def _fmt_currency(value) -> str:
     try:
@@ -96,4 +96,97 @@ def render_daily_report(report: Dict) -> str:
 
     return "\n".join(lines)
 
+def render_weekly_report(data: dict,
+                                      ichef_monthly_limit: int = 150) -> str:
+    """
+    將 calculate_weekly_metrics() 的原始輸出
+    轉換為股東週報文字格式
+    """
+
+    # === 基本數據 ===
+    start_date = data["start_date"]
+    end_date = data["end_date"]
+    total_orders = data["total_orders"]
+    total_bowls = data["total_bowls"]
+    total_revenue = data["total_revenue"]
+
+    avg_bowl_price = data["avg_bowl_price"]
+
+    # === 通路 ===
+    dine_in = data["dine_in_orders"]
+    takeout = data["takeout_orders"]
+    online = data["online_orders"]
+
+    ichef_usage_ratio = "{:.2f}".format(round((online / ichef_monthly_limit) * 100, 1) if ichef_monthly_limit else 0)
+
+    # === 支付 ===
+    cash = data["cash_orders"]
+    linepay = data["linepay_orders"]
+
+    # === 價格 ===
+    price_dist = data["price_distribution"]
+    orders_ge_200 = data["orders_ge_200"]
+
+    # === 蛋白質（直接使用 ratio 排名）===
+    protein_rank_ratio = data["protein_events_ratio"]
+
+    medal = ["🥇 ", "🥈 ", "🥉 "]
+
+    protein_lines = []
+    for idx, (protein, ratio) in enumerate(protein_rank_ratio):
+        icon = medal[idx] if idx < 3 else ""
+        title = PROTEIN_RULES[protein][0]
+        amount = data['protein_events_dict'][protein]
+        protein_lines.append("{}{} — {} ({:.2f}%)".format(icon, title, amount, ratio))
+
+    protein_block = "\n".join(protein_lines)
+
+    # === 日別 ===
+    max_day, max_bowls = data["max_bowl_day"]
+    min_day, min_bowls = data["min_bowl_day"]
+
+    # ========================
+    # 組裝報告字串
+    # ========================
+
+    report = f"""
+📊 試營運週報
+期間：{start_date} – {end_date}
+
+━━━━━━━━━━━━━━━━━━
+一、營運規模
+
+總訂單數：{total_orders}
+總營收：${total_revenue:,.0f}
+總出碗數：{total_bowls}
+平均單碗收入：${avg_bowl_price}
+
+━━━━━━━━━━━━━━━━━━
+二、通路結構
+
+內用：{dine_in}
+外帶：{takeout}
+雲端餐廳(含內用掃碼點餐及外帶)：{online}
+
+iCHEF 每月額度 {ichef_monthly_limit} 單
+
+━━━━━━━━━━━━━━━━━━
+三、支付方式
+
+Line Pay：{linepay}
+現金：{cash}
+
+━━━━━━━━━━━━━━━━━━
+四、蛋白質需求結構
+
+{protein_block}
+
+━━━━━━━━━━━━━━━━━━
+五、日別量體
+
+最高出碗日：{max_day}({max_bowls} 碗)
+最低出碗日：{min_day}({min_bowls} 碗)
+"""
+
+    return report.strip()
 
