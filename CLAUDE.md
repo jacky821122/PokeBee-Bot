@@ -39,7 +39,12 @@ python weekly_generator.py --start YYYY-MM-DD --end YYYY-MM-DD
 # Or:   週報 上週
 ```
 
-There is no test suite. Testing is done manually via the LINE bot.
+```sh
+# Run tests
+python -m pytest tests/ -v
+```
+
+Tests cover `metrics_common` (pure unit, 32 cases) and `calculate_daily_metrics` (integration with in-memory SQLite, 4 cases). CI runs on every push via GitHub Actions.
 
 ## Architecture
 
@@ -116,3 +121,42 @@ Because modifier data has no timestamp granularity, it cannot be attributed to i
 ### Data update cadence
 - Order data: any time, via LINE bot file upload
 - Modifier data: once per week, manual CLI import (`python import_modifier_csv.py`)
+
+### Weekly report workflow in practice
+Owner manually downloads modifier CSV from iCHEF backend → runs `import_modifier_csv.py` → sends `週報 上週` via LINE bot → pastes the output text into an LLM for deeper analysis. The weekly report output is intentionally structured for LLM consumption (structured text, complete protein breakdown) rather than human skimming.
+
+There is no automated scheduling — owner triggers the report manually after updating modifier data, which is the natural trigger point anyway.
+
+## Store Context
+
+### Menu — confirmed item names from production iCHEF CSV (2026-02)
+
+**Individual bowls:**
+| Item | Price |
+|---|---|
+| 雞胸肉自選碗 | $149 |
+| 嚴選生鮭魚自選碗 | $171 |
+| 鮮蝦自選碗 | $153 |
+| 生鮪魚自選碗 | $198 |
+| 豆腐自選碗 | (unknown, inferred from PROTEIN_RULES) |
+
+**Set meals (套餐):**
+| Item | Price | Protein composition |
+|---|---|---|
+| 高蛋白健身碗 | $189 | 2× chicken |
+| 海味雙魚碗 | $234 | 1× salmon + 1× tuna |
+| 清爽佛陀碗 | — | 1× tofu |
+| 經典均衡碗 | — | 1× chicken |
+
+**Add-ons (modifier / non-bowl items):**
+- `豆腐 80g $0.0` — counts as tofu protein (non-bowl)
+- `嚴選生鮭魚 45g $0.0` — counts as salmon protein (non-bowl)
+- `提袋 $2.0` — excluded from all counts (EXCLUDE_ITEMS)
+
+**Business hours:**
+- Lunch: 11:00–14:30
+- Dinner: 16:30–20:00
+
+**Order types:** `Dine In` / `Takeout` / `Delivery` (Delivery maps to cloud kitchen = Online Store order_source)
+
+**Payment methods:** Cash (`現金`), LinePay — anything else falls through to "Other"
