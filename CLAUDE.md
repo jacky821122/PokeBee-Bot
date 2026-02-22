@@ -72,3 +72,38 @@ SET_MEAL_RULES = { ... }         # maps set-meal names to their protein composit
 **Filters applied before any analysis:**
 - `order_status NOT LIKE '%Voided%'` (SQL level)
 - `invoice_amount > 0` (excludes employee/zero-cost orders)
+
+## Design Decisions & Constraints
+
+### iCHEF data limitations
+iCHEF has no webhook or event-based API. All data must be manually downloaded as CSV exports and uploaded.
+
+There are two fundamentally different CSV types:
+
+| | Order CSV (`Payment_Void Record_*.csv`) | Modifier CSV (`modifier*.csv`) |
+|---|---|---|
+| Granularity | Per-order, with timestamp | Aggregate totals only, no per-order timestamp |
+| Date range | Exact checkout_time per row | Only a date range total |
+| How to get | Upload via LINE bot | Manual download, weekly cadence |
+| Used in | Daily + weekly reports | Weekly report only |
+
+Because modifier data has no timestamp granularity, it cannot be attributed to individual days.
+
+### Report audience and purpose
+
+**Daily report** (`分析 YYYY-MM-DD` via LINE bot):
+- Audience: shareholders — quick daily pulse check
+- Philosophy: show only what shareholders actually care about; keep it concise
+- Intentionally excludes: protein breakdown, cloud kitchen ratio
+  - Protein: modifier add-ons contribute significantly to protein counts; without them the bowl-only number is misleading
+  - Cloud kitchen: implicit/background data, not a shareholder-facing metric
+
+**Weekly report** (`weekly_generator.py --start ... --end ...`):
+- Audience: primarily LLM for advanced analysis; secondarily shareholders via manual paste
+- Run manually via CLI, output pasted to LINE by owner
+- Includes protein from all sources (bowls + add-ons + set meals + non-bowl items)
+- Modifier data is loaded and merged here, giving a complete protein picture
+
+### Data update cadence
+- Order data: any time, via LINE bot file upload
+- Modifier data: once per week, manual CLI import (`python import_modifier_csv.py`)
