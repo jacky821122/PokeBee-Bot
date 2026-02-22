@@ -1,3 +1,26 @@
-flask>=2.0,<4.0
-pandas>=1.5,<3.0
-line-bot-sdk>=2.0,<3.0
+# Core web framework
+Flask==3.1.2
+Werkzeug==3.1.5
+
+# LINE Bot SDK
+line-bot-sdk==3.22.0
+
+# Data processing
+pandas==2.3.3
+numpy==2.2.6
+
+# Date/time utilities
+python-dateutil==2.9.0.post0
+pytz==2025.2
+
+# HTTP requests
+requests==2.32.5
+aiohttp==3.13.3
+
+# Type validation
+pydantic==2.12.5
+pydantic-core==2.41.5
+typing-extensions==4.15.0
+
+# Utilities
+click==8.3.1

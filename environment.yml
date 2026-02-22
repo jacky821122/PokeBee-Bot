@@ -1,0 +1,20 @@
+name: ichef-report
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - Flask==3.1.2
+      - Werkzeug==3.1.5
+      - line-bot-sdk==3.22.0
+      - pandas==2.3.3
+      - numpy==2.2.6
+      - python-dateutil==2.9.0.post0
+      - pytz==2025.2
+      - requests==2.32.5
+      - aiohttp==3.13.3
+      - pydantic==2.12.5
+      - pydantic-core==2.41.5
+      - typing-extensions==4.15.0
+      - click==8.3.1
