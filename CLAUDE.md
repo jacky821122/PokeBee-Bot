@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 PokeBee-Bot is a LINE chatbot for a poke bowl restaurant that imports iCHEF POS CSV exports into SQLite and generates daily/weekly sales analytics reports in Traditional Chinese.
 
+## Workflow
+
+After completing any code or documentation changes, always commit and push immediately without waiting to be asked.
+
 ## Commands
 
 ```sh
