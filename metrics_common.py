@@ -1,4 +1,5 @@
 import sqlite3
+from pathlib import Path
 from typing import Iterable, Optional
 import pandas as pd
 
@@ -31,7 +32,8 @@ SET_MEAL_RULES = {
     "海味雙魚碗": {"salmon": 1, "tuna": 1},
 }
 
-DB_PATH = "data/db/ichef.db"
+_PROJECT_ROOT = Path(__file__).resolve().parent
+DB_PATH = str(_PROJECT_ROOT / "data" / "db" / "ichef.db")
 
 def is_in_period(dt, period_name: str) -> bool:
     """判斷時間是否在設定的營業時間內"""
@@ -145,7 +147,10 @@ def load_modifier(start_date: str, end_date: str) -> pd.DataFrame:
 
     conn = sqlite3.connect(DB_PATH)
     try:
-        return pd.read_sql_query(query, conn, params=(start_date, end_date))
+        df = pd.read_sql_query(query, conn, params=(start_date, end_date))
+        if df.empty:
+            return pd.DataFrame(columns=["name", "count"])
+        return df
     finally:
         conn.close()
 

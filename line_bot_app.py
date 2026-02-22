@@ -1,4 +1,5 @@
 import os
+import re
 from flask import Flask, request, abort
 import datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage, FileMessa
 
 from daily_metrics import calculate_daily_metrics
 from report_renderer import render_daily_report
+from metrics_common import _PROJECT_ROOT
 
 
 # === LINE 設定 ===
@@ -76,7 +78,15 @@ def handle_text_message(event: MessageEvent):
             reply_text = handle_analysis_command((datetime.date.today() - datetime.timedelta(days=1)).isoformat())
         else:
             date = parts[1]
-            reply_text = handle_analysis_command(date)
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+                reply_text = "❌ 日期格式錯誤，請使用：YYYY-MM-DD"
+            else:
+                try:
+                    datetime.date.fromisoformat(date)
+                except ValueError:
+                    reply_text = "❌ 日期不存在，請確認日期是否正確"
+                else:
+                    reply_text = handle_analysis_command(date)
     else:
         reply_text = "🤖 我目前只支援指令：分析 YYYY-MM-DD"
 
@@ -124,7 +134,7 @@ def handle_file_message(event):
 
     # 3. 決定儲存路徑（依上傳月份）
     today = datetime.datetime.today().strftime("%Y-%m")
-    raw_dir = Path(f"./data/ichef/raw/{today}")
+    raw_dir = _PROJECT_ROOT / "data" / "ichef" / "raw" / today
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     save_path = raw_dir / file_name
