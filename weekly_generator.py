@@ -1,6 +1,19 @@
 import argparse
 import pandas as pd
-from metrics_common import *
+from metrics_common import (
+    PROTEIN_RULES,
+    count_bowls,
+    count_protein_bowls,
+    count_protein_non_bowls,
+    count_set_meal_proteins,
+    filter_protein_bowls,
+    filter_protein_non_bowls,
+    is_in_period,
+    load_modifier,
+    load_orders,
+    normalize_payment,
+    preprocess_orders,
+)
 from report_renderer import render_weekly_report
 
 def is_peak(hour_float: float) -> bool:
@@ -70,24 +83,26 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
     non_peak_orders = len(df[~df["is_peak"]])
 
     # ---------- 訂單型態結構 ----------
-    dine_in_orders = len(df[df["order_type"] == "Dine In"])
-    takeout_orders = len(df[df["order_type"] == "Takeout"])
+    dine_in_mask = df["order_type"].isin(["Dine In", "內用"])
+    takeout_mask = df["order_type"].isin(["Takeout", "外帶", "Delivery", "外送"])
+    dine_in_orders = len(df[dine_in_mask])
+    takeout_orders = len(df[takeout_mask])
     online_orders = len(df[df["order_source"] == "Online Store"])
 
-    dine_in_bowls = df[df["order_type"] == "Dine In"]["bowls"].sum()
-    takeout_bowls = df[df["order_type"] == "Takeout"]["bowls"].sum()
+    dine_in_bowls = df[dine_in_mask]["bowls"].sum()
+    takeout_bowls = df[takeout_mask]["bowls"].sum()
     online_bowls = df[df["order_source"] == "Online Store"]["bowls"].sum()
 
     # ---------- 訂單型態 × 時段 ----------
     def cross_count(cond):
         return len(df[cond])
 
-    peak_dine_in = cross_count((df["is_peak"]) & (df["order_type"] == "Dine In"))
-    peak_takeout = cross_count((df["is_peak"]) & (df["order_type"] == "Takeout"))
+    peak_dine_in = cross_count((df["is_peak"]) & dine_in_mask)
+    peak_takeout = cross_count((df["is_peak"]) & takeout_mask)
     peak_online = cross_count((df["is_peak"]) & (df["order_source"] == "Online Store"))
 
-    non_peak_dine_in = cross_count((~df["is_peak"]) & (df["order_type"] == "Dine In"))
-    non_peak_takeout = cross_count((~df["is_peak"]) & (df["order_type"] == "Takeout"))
+    non_peak_dine_in = cross_count((~df["is_peak"]) & dine_in_mask)
+    non_peak_takeout = cross_count((~df["is_peak"]) & takeout_mask)
     non_peak_online = cross_count((~df["is_peak"]) & (df["order_source"] == "Online Store"))
 
     # ---------- 金流結構 ----------
@@ -106,8 +121,8 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
     daily_bowls = df.groupby("date")["bowls"].sum().to_dict()
     daily_revenue = df.groupby("date")["invoice_amount"].sum().to_dict()
 
-    max_bowl_day = max(daily_bowls.items(), key=lambda x: x[1])
-    min_bowl_day = min(daily_bowls.items(), key=lambda x: x[1])
+    max_bowl_day = max(daily_bowls.items(), key=lambda x: x[1]) if daily_bowls else (None, 0)
+    min_bowl_day = min(daily_bowls.items(), key=lambda x: x[1]) if daily_bowls else (None, 0)
 
     # ---------- 高價值訂單 ----------
     price_dist = {
@@ -167,7 +182,6 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
     # 各來源總和
     protein_totals = {name: series.sum() for name, series in protein_series.items()}
 
-    selected_sources = ["bowls", "adds"]
     selected_sources = [name for name, data in protein_sources.items()]
     protein_events = (
         pd.concat([protein_series[name] for name in selected_sources], axis=1)
@@ -261,8 +275,6 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
         "second_protein_bowls": second_protein_bowls,
         "second_protein_ratio": "{:.2f}%".format(second_protein_ratio * 100),
     }
-
-import pprint
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

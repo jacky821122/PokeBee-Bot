@@ -49,7 +49,7 @@ def normalize_payment(payment_method: Optional[str]) -> str:
     return "Other"
 
 def _split_items(items_text: str):
-    if not items_text:
+    if not isinstance(items_text, str):
         return []
     return [item.strip() for item in items_text.split(",") if item.strip()]
 
@@ -137,7 +137,7 @@ def load_orders(start_date: str, end_date: str, *, columns: list[str]) -> pd.Dat
 
 def load_modifier(start_date: str, end_date: str) -> pd.DataFrame:
     query = f"""
-        SELECT name, count
+        SELECT name, SUM(count) AS count
         FROM modifier_summary
         WHERE NOT (end_date < ? OR start_date > ?)
         GROUP BY name;

@@ -3,8 +3,7 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-
-DB_PATH = "data/db/ichef.db"
+from metrics_common import DB_PATH
 
 COLUMN_MAP = {
     "Receipt number": "invoice_number",
@@ -30,8 +29,10 @@ def import_csv(csv_path: str):
     # only keep columns we care about
     df = df[list(COLUMN_MAP.keys())].rename(columns=COLUMN_MAP)
 
-    # normalize time
-    df["checkout_time"] = pd.to_datetime(df["checkout_time"]).astype(str)
+    # normalize time; drop rows where date cannot be parsed
+    df["checkout_time"] = pd.to_datetime(df["checkout_time"], errors="coerce")
+    df = df.dropna(subset=["checkout_time"])
+    df["checkout_time"] = df["checkout_time"].astype(str)
 
     # add metadata
     df["source_file"] = csv_path.name
@@ -43,49 +44,51 @@ def import_csv(csv_path: str):
     inserted = 0
     skipped = 0
 
-    for _, row in df.iterrows():
-        try:
-            cur.execute(
-                """
-                INSERT OR IGNORE INTO raw_orders (
-                    source_file,
-                    imported_at,
-                    invoice_number,
-                    order_id,
-                    checkout_time,
-                    order_source,
-                    order_type,
-                    discount_amount,
-                    invoice_amount,
-                    payment_method,
-                    order_status,
-                    items_text
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                tuple(row[col] for col in [
-                    "source_file",
-                    "imported_at",
-                    "invoice_number",
-                    "order_id",
-                    "checkout_time",
-                    "order_source",
-                    "order_type",
-                    "discount_amount",
-                    "invoice_amount",
-                    "payment_method",
-                    "order_status",
-                    "items_text"
-                ])
-            )
-            if cur.rowcount == 0:
-                skipped += 1
-            else:
-                inserted += 1
-        except Exception as e:
-            print(f"Error inserting row: {e}")
+    try:
+        for _, row in df.iterrows():
+            try:
+                cur.execute(
+                    """
+                    INSERT OR IGNORE INTO raw_orders (
+                        source_file,
+                        imported_at,
+                        invoice_number,
+                        order_id,
+                        checkout_time,
+                        order_source,
+                        order_type,
+                        discount_amount,
+                        invoice_amount,
+                        payment_method,
+                        order_status,
+                        items_text
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    tuple(row[col] for col in [
+                        "source_file",
+                        "imported_at",
+                        "invoice_number",
+                        "order_id",
+                        "checkout_time",
+                        "order_source",
+                        "order_type",
+                        "discount_amount",
+                        "invoice_amount",
+                        "payment_method",
+                        "order_status",
+                        "items_text"
+                    ])
+                )
+                if cur.rowcount == 0:
+                    skipped += 1
+                else:
+                    inserted += 1
+            except Exception as e:
+                print(f"Error inserting row: {e}")
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
 
     print(f"Import finished: inserted={inserted}, skipped={skipped}")
     return f"Import finished: inserted={inserted}, skipped={skipped}"

@@ -61,11 +61,11 @@ def calculate_daily_metrics(target_date: str):
 
     peak_hour_series = df.groupby(df["checkout_time"].dt.hour)["bowls"].sum()
     top_hours = peak_hour_series.nlargest(2)  # 取前兩名
-    first_peak_hour = top_hours.index[0]
-    first_peak_hour_bowls = top_hours.iloc[0]
+    first_peak_hour = top_hours.index[0] if len(top_hours) >= 1 else None
+    first_peak_hour_bowls = top_hours.iloc[0] if len(top_hours) >= 1 else 0
     first_peak_ratio = first_peak_hour_bowls / total_bowls if total_bowls else 0
-    second_peak_hour = top_hours.index[1]
-    second_peak_hour_bowls = top_hours.iloc[1]
+    second_peak_hour = top_hours.index[1] if len(top_hours) >= 2 else None
+    second_peak_hour_bowls = top_hours.iloc[1] if len(top_hours) >= 2 else 0
     second_peak_ratio = second_peak_hour_bowls / total_bowls if total_bowls else 0
 
     # 蛋白質碗數統計（關鍵字 + 碗）
@@ -93,14 +93,14 @@ def calculate_daily_metrics(target_date: str):
 
     pay_in_cash = df[df["payment_type"].isin(["Cash"])]
     pay_in_LinePay = df[df["payment_type"].isin(["LinePay"])]
-    pay_in_cash_order_ratio = pay_in_cash.shape[0] / total_orders
-    pay_in_LinePay_order_ratio = pay_in_LinePay.shape[0] / total_orders
+    pay_in_cash_order_ratio = pay_in_cash.shape[0] / total_orders if total_orders else 0
+    pay_in_LinePay_order_ratio = pay_in_LinePay.shape[0] / total_orders if total_orders else 0
 
     discount_orders = df[df["discount_amount"] > 0].shape[0]
     discount_amount = df["discount_amount"].sum()
 
     cloud_kitchen_orders = df[df["order_source"].isin(["Online Store"])].shape[0]
-    cloud_kitchen_ratio = cloud_kitchen_orders / total_orders
+    cloud_kitchen_ratio = cloud_kitchen_orders / total_orders if total_orders else 0
 
     return {
         "date": target_date,
@@ -120,11 +120,11 @@ def calculate_daily_metrics(target_date: str):
             "dinner_bowls": int(dinner_df["bowls"].sum()),
         },
         "operational": {
-            "first_peak_hour": f"{first_peak_hour}:00-{first_peak_hour+1}:00",
-            "first_peak_hour_bowls": int(first_peak_hour_bowls) if not peak_hour_series.empty else 0,
+            "first_peak_hour": f"{first_peak_hour}:00-{first_peak_hour+1}:00" if first_peak_hour is not None else "--",
+            "first_peak_hour_bowls": int(first_peak_hour_bowls) if first_peak_hour is not None else 0,
             "first_peak_hour_ratio": round(first_peak_ratio, 2),
-            "second_peak_hour": f"{second_peak_hour}:00-{second_peak_hour+1}:00",
-            "second_peak_hour_bowls": int(second_peak_hour_bowls) if not peak_hour_series.empty else 0,
+            "second_peak_hour": f"{second_peak_hour}:00-{second_peak_hour+1}:00" if second_peak_hour is not None else "--",
+            "second_peak_hour_bowls": int(second_peak_hour_bowls) if second_peak_hour is not None else 0,
             "second_peak_hour_ratio": round(second_peak_ratio, 2),
             "protein_bowls": protein_series.sort_values(ascending=False).to_dict(),
             "first_protein": first_protein,

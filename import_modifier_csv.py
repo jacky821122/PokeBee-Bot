@@ -4,9 +4,7 @@ import pandas as pd
 import sqlite3
 from pathlib import Path
 from datetime import datetime
-from metrics_common import PROTEIN_RULES, PROTEIN_KEYWORDS
-
-DB_PATH = "data/db/ichef.db"
+from metrics_common import DB_PATH, PROTEIN_RULES, PROTEIN_KEYWORDS
 
 def import_modifier_csv(csv_path: str):
     csv_path = Path(csv_path)
@@ -37,38 +35,45 @@ def import_modifier_csv(csv_path: str):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
-    # 刪除重疊區間
-    cur.execute("""
-        DELETE FROM modifier_summary
-        WHERE NOT (end_date < ? OR start_date > ?)
-    """, (start_date, end_date))
-
     inserted = 0
 
-    for _, row in df.iterrows():
-        cur.execute("""
-            INSERT INTO modifier_summary (
-                start_date,
-                end_date,
-                name,
-                count,
-                total_price_change,
-                source_file,
-                imported_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            row["start_date"],
-            row["end_date"],
-            row["name"],
-            row["count"],
-            row["total_price_change"],
-            row["source_file"],
-            row["imported_at"],
-        ))
-        inserted += 1
+    try:
+        cur.execute("BEGIN")
 
-    conn.commit()
-    conn.close()
+        # 刪除重疊區間
+        cur.execute("""
+            DELETE FROM modifier_summary
+            WHERE NOT (end_date < ? OR start_date > ?)
+        """, (start_date, end_date))
+
+        for _, row in df.iterrows():
+            cur.execute("""
+                INSERT INTO modifier_summary (
+                    start_date,
+                    end_date,
+                    name,
+                    count,
+                    total_price_change,
+                    source_file,
+                    imported_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                row["start_date"],
+                row["end_date"],
+                row["name"],
+                row["count"],
+                row["total_price_change"],
+                row["source_file"],
+                row["imported_at"],
+            ))
+            inserted += 1
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
     print(f"Modifier import finished: rows={inserted}")
     return f"Modifier import finished: rows={inserted}"

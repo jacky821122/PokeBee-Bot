@@ -33,3 +33,20 @@ CREATE TABLE IF NOT EXISTS raw_orders (
     UNIQUE(invoice_number, checkout_time)
 );
 
+CREATE TABLE IF NOT EXISTS modifier_summary (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    -- date range this record covers
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+
+    -- modifier info
+    name TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    total_price_change REAL NOT NULL DEFAULT 0.0,
+
+    -- metadata
+    source_file TEXT NOT NULL,
+    imported_at TEXT NOT NULL
+);
+

@@ -104,31 +104,31 @@ def render_weekly_report(data: dict,
     """
 
     # === 基本數據 ===
-    start_date = data["start_date"]
-    end_date = data["end_date"]
-    total_orders = data["total_orders"]
-    total_bowls = data["total_bowls"]
-    total_revenue = data["total_revenue"]
+    start_date = data.get("start_date", "")
+    end_date = data.get("end_date", "")
+    total_orders = data.get("total_orders", 0)
+    total_bowls = data.get("total_bowls", 0)
+    total_revenue = data.get("total_revenue", 0)
 
-    avg_bowl_price = data["avg_bowl_price"]
+    avg_bowl_price = data.get("avg_bowl_price", 0)
 
     # === 通路 ===
-    dine_in = data["dine_in_orders"]
-    takeout = data["takeout_orders"]
-    online = data["online_orders"]
+    dine_in = data.get("dine_in_orders", 0)
+    takeout = data.get("takeout_orders", 0)
+    online = data.get("online_orders", 0)
 
     ichef_usage_ratio = "{:.2f}".format(round((online / ichef_monthly_limit) * 100, 1) if ichef_monthly_limit else 0)
 
     # === 支付 ===
-    cash = data["cash_orders"]
-    linepay = data["linepay_orders"]
+    cash = data.get("cash_orders", 0)
+    linepay = data.get("linepay_orders", 0)
 
     # === 價格 ===
-    price_dist = data["price_distribution"]
-    orders_ge_200 = data["orders_ge_200"]
+    price_dist = data.get("price_distribution", {})
+    orders_ge_200 = data.get("orders_ge_200", 0)
 
     # === 蛋白質（直接使用 ratio 排名）===
-    protein_rank_ratio = data["protein_events_ratio"]
+    protein_rank_ratio = data.get("protein_events_ratio", [])
 
     medal = ["🥇 ", "🥈 ", "🥉 "]
 
@@ -142,8 +142,8 @@ def render_weekly_report(data: dict,
     protein_block = "\n".join(protein_lines)
 
     # === 日別 ===
-    max_day, max_bowls = data["max_bowl_day"]
-    min_day, min_bowls = data["min_bowl_day"]
+    max_day, max_bowls = data.get("max_bowl_day") or (None, 0)
+    min_day, min_bowls = data.get("min_bowl_day") or (None, 0)
 
     # ========================
     # 組裝報告字串
@@ -184,8 +184,8 @@ Line Pay：{linepay}
 ━━━━━━━━━━━━━━━━━━
 五、日別量體
 
-最高出碗日：{max_day}({max_bowls} 碗)
-最低出碗日：{min_day}({min_bowls} 碗)
+最高出碗日：{max_day or '--'}({max_bowls} 碗)
+最低出碗日：{min_day or '--'}({min_bowls} 碗)
 """
 
     return report.strip()

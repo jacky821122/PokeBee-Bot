@@ -3,7 +3,7 @@ from flask import Flask, request, abort
 import datetime
 from pathlib import Path
 
-from linebot import LineBotApi, WebhookParser, WebhookHandler
+from linebot import LineBotApi, WebhookParser
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FileMessage
 
@@ -14,13 +14,14 @@ from report_renderer import render_daily_report
 # === LINE 設定 ===
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
+if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
+    raise RuntimeError("LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET must be set")
 ALLOWED_USER_IDS = {
     "U93300c2024ddf77f75adb10d4c7a0944"  # 你的 LINE userId
 }
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(LINE_CHANNEL_SECRET)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 app = Flask(__name__)
 
