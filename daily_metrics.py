@@ -146,9 +146,8 @@ def calculate_daily_metrics(target_date: str):
         }
     }
 
-from report_renderer import render_daily_report
-
 if __name__ == "__main__":
+    from report_renderer import render_daily_report
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", required=True, help="YYYY-MM-DD")
     args = parser.parse_args()

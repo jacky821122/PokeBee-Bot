@@ -9,7 +9,8 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FileMessage
 
 from daily_metrics import calculate_daily_metrics
-from report_renderer import render_daily_report
+from weekly_generator import calculate_weekly_metrics
+from report_renderer import render_daily_report, render_weekly_report
 from metrics_common import _PROJECT_ROOT
 
 
@@ -64,7 +65,7 @@ def handle_text_message(event: MessageEvent):
     text = event.message.text.strip()
 
     if is_group:
-        if not text.startswith("分析"):
+        if not text.startswith("分析") and not text.startswith("週報"):
             return  # 完全不回
 
     # 指令格式：分析 YYYY-MM-DD
@@ -87,8 +88,29 @@ def handle_text_message(event: MessageEvent):
                     reply_text = "❌ 日期不存在，請確認日期是否正確"
                 else:
                     reply_text = handle_analysis_command(date)
+    elif text.startswith("週報"):
+        parts = text.split()
+        if len(parts) == 2 and parts[1] == "上週":
+            today = datetime.date.today()
+            last_monday = today - datetime.timedelta(days=today.weekday() + 7)
+            last_sunday = last_monday + datetime.timedelta(days=6)
+            reply_text = handle_weekly_command(last_monday.isoformat(), last_sunday.isoformat())
+        elif len(parts) == 3:
+            start_date, end_date = parts[1], parts[2]
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", start_date) or not re.match(r"^\d{4}-\d{2}-\d{2}$", end_date):
+                reply_text = "❌ 日期格式錯誤，請使用：週報 YYYY-MM-DD YYYY-MM-DD"
+            else:
+                try:
+                    datetime.date.fromisoformat(start_date)
+                    datetime.date.fromisoformat(end_date)
+                except ValueError:
+                    reply_text = "❌ 日期不存在，請確認日期是否正確"
+                else:
+                    reply_text = handle_weekly_command(start_date, end_date)
+        else:
+            reply_text = "❌ 指令格式錯誤，請使用：週報 YYYY-MM-DD YYYY-MM-DD 或 週報 上週"
     else:
-        reply_text = "🤖 我目前只支援指令：分析 YYYY-MM-DD"
+        reply_text = "🤖 我目前只支援指令：分析 YYYY-MM-DD｜週報 YYYY-MM-DD YYYY-MM-DD｜週報 上週"
 
     line_bot_api.reply_message(
         event.reply_token,
@@ -106,6 +128,22 @@ def handle_analysis_command(date: str) -> str:
 
     except Exception as e:
         return f"❌ 分析失敗：{str(e)}"
+
+
+def handle_weekly_command(start_date: str, end_date: str) -> str:
+    try:
+        result = calculate_weekly_metrics(start_date, end_date)
+        if result is None:
+            return f"⚠️ 找不到 {start_date} 至 {end_date} 的營業資料，請確認 CSV 是否已匯入。"
+
+        report = render_weekly_report(result)
+        if len(report) > 4950:
+            report = report[:4950] + "\n…（報告已截斷）"
+        return report
+
+    except Exception as e:
+        return f"❌ 週報產生失敗：{str(e)}"
+
 
 def handle_file_message(event):
     # 1. 只允許 1:1

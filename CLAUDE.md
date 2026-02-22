@@ -31,8 +31,12 @@ python import_modifier_csv.py
 # Run daily metrics for a date
 python daily_metrics.py
 
-# Generate weekly report
-python weekly_generator.py
+# Generate weekly report (CLI)
+python weekly_generator.py --start YYYY-MM-DD --end YYYY-MM-DD
+
+# Generate weekly report via LINE bot
+# Send: 週報 YYYY-MM-DD YYYY-MM-DD
+# Or:   週報 上週
 ```
 
 There is no test suite. Testing is done manually via the LINE bot.
@@ -42,6 +46,7 @@ There is no test suite. Testing is done manually via the LINE bot.
 **Data flow:**
 1. User uploads a CSV to the LINE bot (1:1 only) → `handle_file_message()` saves to `data/ichef/raw/YYYY-MM/` and calls `import_csv()` or `import_modifier_csv()` → inserted into SQLite
 2. User sends `分析 YYYY-MM-DD` (or `分析 今天` / `分析 昨天`) → `calculate_daily_metrics()` → `render_daily_report()` → reply via LINE API
+3. User sends `週報 YYYY-MM-DD YYYY-MM-DD` (or `週報 上週`) → `calculate_weekly_metrics()` → `render_weekly_report()` → reply via LINE API
 
 **Module responsibilities:**
 - `line_bot_app.py` — Flask webhook; routes LINE events to handlers; only allows hardcoded `ALLOWED_USER_IDS`
@@ -102,9 +107,9 @@ Because modifier data has no timestamp granularity, it cannot be attributed to i
   - Protein: modifier add-ons contribute significantly to protein counts; without them the bowl-only number is misleading
   - Cloud kitchen: implicit/background data, not a shareholder-facing metric
 
-**Weekly report** (`weekly_generator.py --start ... --end ...`):
+**Weekly report** (`週報 上週` via LINE bot, or `weekly_generator.py --start ... --end ...` via CLI):
 - Audience: primarily LLM for advanced analysis; secondarily shareholders via manual paste
-- Run manually via CLI, output pasted to LINE by owner
+- Available both via LINE bot (`週報 YYYY-MM-DD YYYY-MM-DD` / `週報 上週`) and via CLI
 - Includes protein from all sources (bowls + add-ons + set meals + non-bowl items)
 - Modifier data is loaded and merged here, giving a complete protein picture
 

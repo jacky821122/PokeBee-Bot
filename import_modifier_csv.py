@@ -32,7 +32,7 @@ def import_modifier_csv(csv_path: str):
     df["source_file"] = csv_path.name
     df["imported_at"] = datetime.now().isoformat(timespec="seconds")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, isolation_level=None)
     cur = conn.cursor()
 
     inserted = 0
