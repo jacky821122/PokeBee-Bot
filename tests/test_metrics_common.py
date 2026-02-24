@@ -2,11 +2,14 @@ import pandas as pd
 import pytest
 from metrics_common import (
     count_bowls,
+    count_bowls_smart,
     count_protein_bowls,
     count_protein_non_bowls,
     count_set_meal_proteins,
+    infer_quantity_from_price,
     normalize_payment,
     is_in_period,
+    validate_bowl_counts,
     PROTEIN_RULES,
 )
 
@@ -163,3 +166,125 @@ class TestIsInPeriod:
 
     def test_after_dinner_end(self):
         assert is_in_period(_ts("20:01"), "dinner") is False
+
+
+# ---------------------------------------------------------------------------
+# infer_quantity_from_price
+# ---------------------------------------------------------------------------
+
+class TestInferQuantityFromPrice:
+    def test_single_chicken_bowl(self):
+        # 160 × 0.9 = 144
+        assert infer_quantity_from_price("雞胸肉自選碗", 144.0) == 1
+
+    def test_triple_chicken_bowl(self):
+        # 160 × 3 × 0.9 = 432
+        assert infer_quantity_from_price("雞胸肉自選碗", 432.0) == 3
+
+    def test_double_chicken_bowl(self):
+        # 160 × 2 × 0.9 = 288
+        assert infer_quantity_from_price("雞胸肉自選碗", 288.0) == 2
+
+    def test_chicken_with_addon(self):
+        # 216 不是 160 的整數倍 → 算 1 碗（有加購）
+        assert infer_quantity_from_price("雞胸肉自選碗", 216.0) == 1
+
+    def test_single_shrimp_bowl(self):
+        # 170 × 0.9 = 153
+        assert infer_quantity_from_price("鮮蝦自選碗", 153.0) == 1
+
+    def test_double_shrimp_bowl(self):
+        # 170 × 2 × 0.9 = 306
+        assert infer_quantity_from_price("鮮蝦自選碗", 306.0) == 2
+
+    def test_shrimp_with_addon(self):
+        # 225 不是 170 的整數倍 → 算 1 碗（有加購）
+        assert infer_quantity_from_price("鮮蝦自選碗", 225.0) == 1
+
+    def test_unknown_bowl(self):
+        # 未知品項 → 算 1 碗
+        assert infer_quantity_from_price("神秘碗", 999.0) == 1
+
+    def test_set_meal_single(self):
+        # 高蛋白健身碗 220 × 0.9 = 198
+        assert infer_quantity_from_price("高蛋白健身碗", 198.0) == 1
+
+    def test_set_meal_double(self):
+        # 高蛋白健身碗 220 × 2 × 0.9 = 396
+        assert infer_quantity_from_price("高蛋白健身碗", 396.0) == 2
+
+
+# ---------------------------------------------------------------------------
+# count_bowls_smart
+# ---------------------------------------------------------------------------
+
+class TestCountBowlsSmart:
+    def test_single_bowl(self):
+        assert count_bowls_smart("雞胸肉自選碗 $144.0") == 1
+
+    def test_triple_chicken_bowl(self):
+        # 實際案例：3 碗雞胸肉被合併成一個項目
+        assert count_bowls_smart("雞胸肉自選碗 $432.0") == 3
+
+    def test_mixed_bowls_with_triple(self):
+        # 實際案例：#-00000447
+        items = "鮮蝦自選碗 $225.0,嚴選生鮭魚自選碗 $261.0,雞胸肉自選碗 $432.0,雞胸肉自選碗 $216.0"
+        # 1 + 1 + 3 + 1 = 6
+        assert count_bowls_smart(items) == 6
+
+    def test_double_bowl(self):
+        assert count_bowls_smart("雞胸肉自選碗 $288.0") == 2
+
+    def test_bowl_with_addon(self):
+        # 有加購的碗算 1 碗
+        assert count_bowls_smart("雞胸肉自選碗 $216.0") == 1
+
+    def test_bag_excluded(self):
+        assert count_bowls_smart("雞胸肉自選碗 $144.0, 提袋 $2.0") == 1
+
+    def test_no_price_info(self):
+        # 沒有價格資訊，算 1 碗
+        assert count_bowls_smart("雞胸肉自選碗") == 1
+
+    def test_empty_string(self):
+        assert count_bowls_smart("") == 0
+
+    def test_none_input(self):
+        assert count_bowls_smart(None) == 0
+
+
+# ---------------------------------------------------------------------------
+# validate_bowl_counts
+# ---------------------------------------------------------------------------
+
+class TestValidateBowlCounts:
+    def test_valid_counts(self, capsys):
+        # 總碗數與分類相符，不應有警告
+        validate_bowl_counts(
+            total_bowls=10,
+            protein_bowls={"chicken": 5, "salmon": 3, "tofu": 2},
+            protein_set_meals={"chicken": 0, "salmon": 0, "tofu": 0}
+        )
+        captured = capsys.readouterr()
+        assert "⚠️" not in captured.out
+
+    def test_small_diff_no_warning(self, capsys):
+        # 小誤差（≤5）不應警告
+        validate_bowl_counts(
+            total_bowls=10,
+            protein_bowls={"chicken": 5, "salmon": 2},
+            protein_set_meals={"chicken": 0, "salmon": 0}
+        )
+        captured = capsys.readouterr()
+        assert "⚠️" not in captured.out
+
+    def test_large_diff_warning(self, capsys):
+        # 大誤差（>5）應該警告
+        validate_bowl_counts(
+            total_bowls=20,
+            protein_bowls={"chicken": 5, "salmon": 2},
+            protein_set_meals={"chicken": 0, "salmon": 0}
+        )
+        captured = capsys.readouterr()
+        assert "⚠️" in captured.out
+        assert "碗數統計異常" in captured.out

@@ -3,7 +3,7 @@ import pandas as pd
 from metrics_common import (
     BUSINESS_HOURS,
     PROTEIN_RULES,
-    count_bowls,
+    count_bowls_smart,
     count_protein_bowls,
     is_in_period,
     load_orders,
@@ -42,7 +42,7 @@ def calculate_daily_metrics(target_date: str):
     df["hour"] = df["checkout_time"].dt.hour
 
     # 3. 計算碗數 (主餐數)
-    df["bowls"] = df["items_text"].apply(count_bowls)
+    df["bowls"] = df["items_text"].apply(count_bowls_smart)
     total_bowls = df["bowls"].sum()
 
     # 4. 區分時段

@@ -2,7 +2,7 @@ import argparse
 import pandas as pd
 from metrics_common import (
     PROTEIN_RULES,
-    count_bowls,
+    count_bowls_smart,
     count_protein_bowls,
     count_protein_non_bowls,
     count_set_meal_proteins,
@@ -13,6 +13,7 @@ from metrics_common import (
     load_orders,
     normalize_payment,
     preprocess_orders,
+    validate_bowl_counts,
 )
 from report_renderer import render_weekly_report
 
@@ -46,7 +47,7 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
 
     df["date"] = df["checkout_time"].dt.date
     df["hour"] = df["checkout_time"].dt.hour + df["checkout_time"].dt.minute / 60
-    df["bowls"] = df["items_text"].apply(count_bowls)
+    df["bowls"] = df["items_text"].apply(count_bowls_smart)
     df["is_peak"] = df["hour"].apply(is_peak)
 
     # ---------- 基礎量體 ----------
@@ -208,6 +209,9 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
     second_protein = protein_rank[1][0] if len(protein_rank) >= 2 else None
     second_protein_bowls = protein_rank[1][1] if len(protein_rank) >= 2 else 0
     second_protein_ratio = second_protein_bowls / total_protein_count if total_protein_count else 0
+
+    # ---------- 驗證碗數一致性 ----------
+    validate_bowl_counts(total_bowls, protein_bowls, protein_set_meals)
 
     # ---------- 輸出 ----------
     return {
