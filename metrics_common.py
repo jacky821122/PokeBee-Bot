@@ -30,7 +30,7 @@ BOWL_BASE_PRICES = {
 DISCOUNT_FACTOR = 0.9
 
 # 常見加購價格（可依營運實際價格調整）
-KNOWN_ADDON_PRICES = [15, 25, 30, 35, 40, 45, 50, 60, 70, 80]
+KNOWN_ADDON_PRICES = [15, 30, 50, 60, 70, 80, 90]
 MAX_ADDON_PER_BOWL = 220
 # ----------------------------
 
