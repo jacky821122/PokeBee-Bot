@@ -1,6 +1,6 @@
 import pytest
 from conftest import insert_order
-from daily_metrics import calculate_daily_metrics
+from daily_metrics import calculate_avg_bowl_price_diagnostics, calculate_daily_metrics
 
 
 class TestCalculateDailyMetrics:
@@ -76,3 +76,21 @@ class TestCalculateDailyMetrics:
         result = calculate_daily_metrics("2026-01-21")
         assert result is not None
         assert result["metrics"]["total_orders"] == 1
+
+    def test_avg_bowl_price_diagnostics(self, db):
+        insert_order(db,
+            checkout_time="2026-01-22 12:00:00",
+            items_text="雞胸肉自選碗 $149.0",
+            invoice_amount=149,
+        )
+        insert_order(db,
+            checkout_time="2026-01-22 13:00:00",
+            items_text="甜點 $80.0",
+            invoice_amount=80,
+        )
+
+        diagnostics = calculate_avg_bowl_price_diagnostics("2026-01-22")
+        assert diagnostics is not None
+        assert diagnostics["total_bowls"] == 1
+        assert diagnostics["zero_bowl_orders"] == 1
+        assert diagnostics["avg_bowl_price"] == 229.0

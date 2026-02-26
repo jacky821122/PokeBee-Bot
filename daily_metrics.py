@@ -11,9 +11,9 @@ from metrics_common import (
     preprocess_orders,
 )
 
-def calculate_daily_metrics(target_date: str):
-    # 優化 1: 增加 Current Status 過濾，避免計入作廢訂單
-    # 優化 2: 預先過濾欄位，減少記憶體佔用
+
+def _load_daily_order_frame(target_date: str):
+    """Load and preprocess orders for a single day."""
     df = load_orders(
         target_date,
         target_date,
@@ -30,11 +30,56 @@ def calculate_daily_metrics(target_date: str):
     )
 
     if df.empty:
+        return df
+
+    df = preprocess_orders(df)
+    if df.empty:
+        return df
+
+    df = df.copy()
+    df["bowls"] = df["items_text"].apply(count_bowls_smart)
+    return df
+
+
+def calculate_avg_bowl_price_diagnostics(target_date: str):
+    """Return details that help explain avg_bowl_price for a single day."""
+    df = _load_daily_order_frame(target_date)
+    if df.empty:
         return None
 
-    # 1. 過濾員工餐與無效訂單
-    # 邏輯：排除金額為 0 的訂單（視為員工餐或公關單）
-    df = preprocess_orders(df)
+    df["order_bowl_price"] = df.apply(
+        lambda row: row["invoice_amount"] / row["bowls"] if row["bowls"] else None,
+        axis=1,
+    )
+
+    total_revenue = float(df["invoice_amount"].sum())
+    total_bowls = int(df["bowls"].sum())
+    avg_bowl_price = round(total_revenue / total_bowls, 2) if total_bowls else 0
+
+    zero_bowl_orders = int((df["bowls"] == 0).sum())
+    high_price_threshold = avg_bowl_price * 1.2 if avg_bowl_price else 0
+    high_price_orders = df[
+        (df["bowls"] > 0) &
+        (df["order_bowl_price"] >= high_price_threshold)
+    ].sort_values("order_bowl_price", ascending=False)
+
+    return {
+        "date": target_date,
+        "avg_bowl_price": avg_bowl_price,
+        "total_revenue": round(total_revenue, 2),
+        "total_bowls": total_bowls,
+        "zero_bowl_orders": zero_bowl_orders,
+        "high_price_threshold": round(high_price_threshold, 2),
+        "top_5_high_price_orders": high_price_orders[
+            ["checkout_time", "invoice_amount", "bowls", "order_bowl_price", "items_text"]
+        ].head(5).to_dict(orient="records"),
+    }
+
+def calculate_daily_metrics(target_date: str):
+    # 優化 1: 增加 Current Status 過濾，避免計入作廢訂單
+    # 優化 2: 預先過濾欄位，減少記憶體佔用
+    df = _load_daily_order_frame(target_date)
+
     if df.empty:
         return None
 
@@ -42,7 +87,6 @@ def calculate_daily_metrics(target_date: str):
     df["hour"] = df["checkout_time"].dt.hour
 
     # 3. 計算碗數 (主餐數)
-    df["bowls"] = df["items_text"].apply(count_bowls_smart)
     total_bowls = df["bowls"].sum()
 
     # 4. 區分時段
@@ -150,6 +194,11 @@ if __name__ == "__main__":
     from report_renderer import render_daily_report
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", required=True, help="YYYY-MM-DD")
+    parser.add_argument(
+        "--debug-avg-bowl-price",
+        action="store_true",
+        help="Print detailed components used in avg_bowl_price calculation.",
+    )
     args = parser.parse_args()
 
     result = calculate_daily_metrics(args.date)
@@ -159,3 +208,7 @@ if __name__ == "__main__":
     else:
         print(result)
         print(render_daily_report(result))
+
+    if args.debug_avg_bowl_price:
+        print("avg_bowl_price diagnostics:")
+        print(calculate_avg_bowl_price_diagnostics(args.date))
