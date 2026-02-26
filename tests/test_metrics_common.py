@@ -201,6 +201,14 @@ class TestInferQuantityFromPrice:
         # 225 不是 170 的整數倍 → 算 1 碗（有加購）
         assert infer_quantity_from_price("鮮蝦自選碗", 225.0) == 1
 
+    def test_shrimp_double_with_same_addon(self):
+        # (170 + 15) × 2 × 0.9 = 333
+        assert infer_quantity_from_price("鮮蝦自選碗", 333.0) == 2
+
+    def test_chicken_single_with_large_addons(self):
+        # (160 + 50 + 70 + 80) × 0.9 = 324
+        assert infer_quantity_from_price("雞胸肉自選碗", 324.0) == 1
+
     def test_unknown_bowl(self):
         # 未知品項 → 算 1 碗
         assert infer_quantity_from_price("神秘碗", 999.0) == 1

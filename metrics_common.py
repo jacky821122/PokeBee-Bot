@@ -28,6 +28,10 @@ BOWL_BASE_PRICES = {
 
 # 試營運折扣係數
 DISCOUNT_FACTOR = 0.9
+
+# 常見加購價格（可依營運實際價格調整）
+KNOWN_ADDON_PRICES = [15, 25, 30, 35, 40, 45, 50, 60, 70, 80]
+MAX_ADDON_PER_BOWL = 220
 # ----------------------------
 
 # 蛋白質辨識規則
@@ -101,15 +105,50 @@ def infer_quantity_from_price(item_name: str, price: float) -> int:
 
     # 計算理論上的原價
     original_price = price / DISCOUNT_FACTOR
+    tolerance = 5
 
-    # 檢查是否是整數倍（允許 ±5 元誤差，處理四捨五入）
-    quantity = round(original_price / base_price)
-    expected_price = quantity * base_price
+    # 嘗試由高到低推 quantity，盡量捕捉「同款多碗 + 每碗相同加購」的情境
+    max_candidate = max(1, int(round(original_price / base_price)) + 1)
+    for quantity in range(max_candidate, 0, -1):
+        per_bowl_original = original_price / quantity
+        addon_per_bowl = per_bowl_original - base_price
 
-    if quantity >= 1 and abs(original_price - expected_price) <= 5:
-        return quantity
-    else:
-        return 1  # 價格不符合整數倍，可能有加購，算 1 碗
+        if addon_per_bowl < -tolerance:
+            continue
+
+        if abs(addon_per_bowl) <= tolerance:
+            return quantity
+
+        if addon_per_bowl > MAX_ADDON_PER_BOWL:
+            continue
+
+        if _is_plausible_addon_amount(addon_per_bowl, tolerance=2):
+            return quantity
+
+    return 1  # fallback：保守視為 1 碗
+
+
+def _is_plausible_addon_amount(amount: float, *, tolerance: int = 5) -> bool:
+    """判斷加購金額是否可能由常見加購單價組合而成。"""
+    if amount < 0:
+        return False
+
+    target = int(round(amount))
+    # 無界背包：檢查是否可由常見加購價格湊出 target（允許 ±tolerance）
+    reachable = [False] * (target + tolerance + 1)
+    reachable[0] = True
+
+    for subtotal in range(len(reachable)):
+        if not reachable[subtotal]:
+            continue
+        for addon_price in KNOWN_ADDON_PRICES:
+            next_total = subtotal + addon_price
+            if next_total < len(reachable):
+                reachable[next_total] = True
+
+    low = max(0, target - tolerance)
+    high = min(len(reachable) - 1, target + tolerance)
+    return any(reachable[value] for value in range(low, high + 1))
 
 def count_bowls_smart(items_text: str) -> int:
     """
@@ -133,7 +172,7 @@ def count_bowls_smart(items_text: str) -> int:
                 price = float(price_str)
                 quantity = infer_quantity_from_price(name.strip(), price)
                 total_bowls += quantity
-            except:
+            except ValueError:
                 total_bowls += 1  # 解析失敗，算 1 碗
         else:
             total_bowls += 1  # 沒有價格資訊，算 1 碗
