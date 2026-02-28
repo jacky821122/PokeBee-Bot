@@ -251,17 +251,27 @@ def load_orders(start_date: str, end_date: str, *, columns: list[str]) -> pd.Dat
     finally:
         conn.close()
 
-def load_modifier(start_date: str, end_date: str) -> pd.DataFrame:
+def load_modifier(start_date: str, end_date: str, *, protein_only: bool = True) -> pd.DataFrame:
+    """載入指定區間的 modifier 統計，預設僅回傳蛋白質相關項目。"""
+
+    params: list = [start_date, end_date]
+    where_sql = "WHERE NOT (end_date < ? OR start_date > ?)"
+
+    if protein_only and PROTEIN_KEYWORDS:
+        like_clauses = " OR ".join(["name LIKE ?" for _ in PROTEIN_KEYWORDS])
+        where_sql += f" AND ({like_clauses})"
+        params.extend([f"%{keyword}%" for keyword in PROTEIN_KEYWORDS])
+
     query = f"""
         SELECT name, SUM(count) AS count
         FROM modifier_summary
-        WHERE NOT (end_date < ? OR start_date > ?)
+        {where_sql}
         GROUP BY name;
     """
 
     conn = sqlite3.connect(DB_PATH)
     try:
-        df = pd.read_sql_query(query, conn, params=(start_date, end_date))
+        df = pd.read_sql_query(query, conn, params=params)
         if df.empty:
             return pd.DataFrame(columns=["name", "count"])
         return df

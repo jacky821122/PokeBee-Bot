@@ -4,7 +4,7 @@ import pandas as pd
 import sqlite3
 from pathlib import Path
 from datetime import datetime
-from metrics_common import DB_PATH, PROTEIN_RULES, PROTEIN_KEYWORDS
+from metrics_common import DB_PATH
 
 def import_modifier_csv(csv_path: str):
     csv_path = Path(csv_path)
@@ -20,8 +20,10 @@ def import_modifier_csv(csv_path: str):
 
     df = pd.read_csv(csv_path)
 
-    # 僅保留蛋白質加購
-    df = df[df["name"].str.contains("|".join(PROTEIN_KEYWORDS), na=False)]
+    # 保留完整 modifier 資料，避免在 import 階段就丟失可追溯資訊。
+    # 後續蛋白質相關報表再依 PROTEIN_RULES / PROTEIN_KEYWORDS 篩選。
+    df["name"] = df["name"].fillna("").astype(str).str.strip()
+    df = df[df["name"] != ""]
 
     # 清理數值欄位
     df["count"] = pd.to_numeric(df["Count"], errors="coerce").fillna(0).astype(int)
@@ -85,4 +87,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     import_modifier_csv(args.file)
-
