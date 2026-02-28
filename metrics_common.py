@@ -24,6 +24,7 @@ BOWL_BASE_PRICES = {
     "高蛋白健身碗": 220,
     "清爽佛陀碗": 130,
     "海味雙魚碗": 260,
+    "壽喜燒豬自選碗": 160,
 }
 
 # 試營運折扣係數
@@ -41,6 +42,7 @@ PROTEIN_RULES = {
     "shrimp": ["鮮蝦"],
     "salmon": ["鮭魚"],
     "tuna": ["鮪魚"],
+    "pork": ["壽喜燒豬"],
 }
 PROTEIN_KEYWORDS = [keyword for sublist in PROTEIN_RULES.values() for keyword in sublist]
 # ----------------------------
