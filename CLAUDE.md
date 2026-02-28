@@ -79,6 +79,7 @@ PROTEIN_RULES  = {               # protein → list of required keywords in item
     "shrimp":  ["鮮蝦"],
     "salmon":  ["鮭魚"],
     "tuna":    ["鮪魚"],
+    "pork":    ["壽喜燒豬"],
 }
 SET_MEAL_RULES = { ... }         # maps set-meal names to their protein composition
 ```
@@ -138,6 +139,7 @@ There is no automated scheduling — owner triggers the report manually after up
 | 嚴選生鮭魚自選碗 | $171 |
 | 鮮蝦自選碗 | $153 |
 | 生鮪魚自選碗 | $198 |
+| 壽喜燒豬自選碗 | $160 |
 | 豆腐自選碗 | (unknown, inferred from PROTEIN_RULES) |
 
 **Set meals (套餐):**
@@ -151,6 +153,7 @@ There is no automated scheduling — owner triggers the report manually after up
 **Add-ons (modifier / non-bowl items):**
 - `豆腐 80g $0.0` — counts as tofu protein (non-bowl)
 - `嚴選生鮭魚 45g $0.0` — counts as salmon protein (non-bowl)
+- `加購一份壽喜燒豬 $50` — counts as pork protein (non-bowl)
 - `提袋 $2.0` — excluded from all counts (EXCLUDE_ITEMS)
 
 **Business hours:**
