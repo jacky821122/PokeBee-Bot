@@ -66,6 +66,9 @@ class TestCountProteinBowls:
         # 套餐名稱裡沒有直接的蛋白質關鍵字 → 不計入
         assert count_protein_bowls("海味雙魚碗 $234.0", "salmon") == 0
 
+    def test_sukiyaki_pork_bowl(self):
+        assert count_protein_bowls("壽喜燒豬自選碗 $144.0", "pork") == 1
+
 
 # ---------------------------------------------------------------------------
 # count_protein_non_bowls
@@ -81,6 +84,16 @@ class TestCountProteinNonBowls:
     def test_bowl_not_counted(self):
         # 雞胸肉自選碗 是碗 → 不算 non-bowl protein
         assert count_protein_non_bowls("雞胸肉自選碗 $149.0", "chicken") == 0
+
+    @pytest.mark.parametrize(
+        "item_text",
+        [
+            "加購一份壽喜燒豬 $50.0",
+            "壽喜燒豬 80g $0.0",
+        ],
+    )
+    def test_sukiyaki_pork_non_bowl(self, item_text):
+        assert count_protein_non_bowls(item_text, "pork") == 1
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +234,16 @@ class TestInferQuantityFromPrice:
         # 高蛋白健身碗 220 × 2 × 0.9 = 396
         assert infer_quantity_from_price("高蛋白健身碗", 396.0) == 2
 
+    @pytest.mark.parametrize(
+        ("item_name", "price", "expected"),
+        [
+            ("壽喜燒豬自選碗", 144.0, 1),
+            ("壽喜燒豬自選碗", 288.0, 2),
+        ],
+    )
+    def test_sukiyaki_pork_bowl_quantities(self, item_name, price, expected):
+        assert infer_quantity_from_price(item_name, price) == expected
+
 
 # ---------------------------------------------------------------------------
 # count_bowls_smart
@@ -253,6 +276,11 @@ class TestCountBowlsSmart:
     def test_no_price_info(self):
         # 沒有價格資訊，算 1 碗
         assert count_bowls_smart("雞胸肉自選碗") == 1
+
+    def test_mixed_bowls_with_sukiyaki_pork(self):
+        items = "壽喜燒豬自選碗 $288.0,雞胸肉自選碗 $144.0,加購一份壽喜燒豬 $50.0,味噌湯 $30.0"
+        # 壽喜燒豬 2 碗 + 雞胸肉 1 碗，加購與湯不算碗
+        assert count_bowls_smart(items) == 3
 
     def test_empty_string(self):
         assert count_bowls_smart("") == 0
