@@ -68,4 +68,4 @@ conda activate ichef-report
 **Key config** — all business rules live in `metrics_common.py`:
 - `BUSINESS_HOURS` — lunch/dinner time windows
 - `BOWLS_KEYWORDS` / `EXCLUDE_ITEMS` — bowl counting rules
-- `PROTEIN_RULES` / `SET_MEAL_RULES` — protein attribution
+- `PROTEIN_RULES` / `SET_MEAL_RULES` — protein attribution（包含新蛋白質 `pork`，並支援新主餐 `壽喜燒豬自選碗`）
