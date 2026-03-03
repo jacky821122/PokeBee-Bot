@@ -46,12 +46,23 @@ class EmployeeSummary:
 
 
 def round_to_half_hour(dt: datetime) -> datetime:
-    m = dt.minute
-    if m < 15:
+    if dt.minute < 15:
         return dt.replace(minute=0, second=0, microsecond=0)
-    if m < 45:
+    if dt.minute < 45:
         return dt.replace(minute=30, second=0, microsecond=0)
     return (dt + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+
+
+def floor_to_half_hour(dt: datetime) -> datetime:
+    return dt.replace(minute=30 if dt.minute >= 30 else 0, second=0, microsecond=0)
+
+
+def normalize_out_time(out_ts: datetime, normal_end: Optional[datetime]) -> datetime:
+    if normal_end is None or out_ts <= normal_end:
+        return round_to_half_hour(out_ts)
+    if out_ts < normal_end + timedelta(minutes=30):
+        return normal_end
+    return floor_to_half_hour(out_ts)
 
 
 def fmt_hours(hours: float) -> str:
@@ -66,8 +77,7 @@ def parse_csv(path: Path) -> dict[str, list[Event]]:
     pending_no_in = False
 
     with path.open("r", encoding="utf-8-sig", newline="") as f:
-        reader = csv.reader(f)
-        for row in reader:
+        for row in csv.reader(f):
             if not row:
                 continue
             c0 = (row[0] or "").strip()
@@ -76,12 +86,7 @@ def parse_csv(path: Path) -> dict[str, list[Event]]:
             if c0 == "" and c1 == "":
                 continue
 
-            if c1 == "" and c0 not in {
-                "clock-in",
-                "clock-out",
-                "no clock-in record",
-                "no clock-out record",
-            } and not c0.startswith("Total hours"):
+            if c1 == "" and c0 not in {"clock-in", "clock-out", "no clock-in record", "no clock-out record"} and not c0.startswith("Total hours"):
                 current_name = c0
                 employees.setdefault(current_name, [])
                 pending_no_in = False
@@ -97,21 +102,14 @@ def parse_csv(path: Path) -> dict[str, list[Event]]:
 
             if c0 == "clock-in" and c1:
                 employees[current_name].append(Event("clock-in", datetime.strptime(c1, TIME_FORMAT)))
-                continue
-
-            if c0 == "clock-out" and c1:
+            elif c0 == "clock-out" and c1:
                 kind = "clock-out-no-in" if pending_no_in else "clock-out"
                 employees[current_name].append(Event(kind, datetime.strptime(c1, TIME_FORMAT)))
                 pending_no_in = False
-                continue
-
-            if c0 == "no clock-in record":
+            elif c0 == "no clock-in record":
                 pending_no_in = True
-                continue
-
-            if c0 == "no clock-out record":
+            elif c0 == "no clock-out record":
                 employees[current_name].append(Event("no-clock-out"))
-                continue
 
     return {k: v for k, v in employees.items() if v}
 
@@ -134,6 +132,105 @@ def add_record(records: list[PairRecord], summary: EmployeeSummary, rec: PairRec
         summary.specials.append(f"{rec.date} {rec.note}")
 
 
+def handle_full_time(summary: EmployeeSummary, records: list[PairRecord], name: str, in_ts: Optional[datetime], out_ts: Optional[datetime], inferred_no_in: bool) -> None:
+    date = (in_ts or out_ts).date().isoformat()
+    in_norm = round_to_half_hour(in_ts) if in_ts else None
+    normal_end = datetime(out_ts.year, out_ts.month, out_ts.day, 20, 0) if out_ts else None
+    out_norm = normalize_out_time(out_ts, normal_end) if out_ts else None
+
+    normal = 8.0 if (in_ts and out_ts) else 0.0
+    overtime = 0.0
+    notes: list[str] = []
+
+    if not in_ts or not out_ts or inferred_no_in:
+        notes.append("缺打卡，需人工確認")
+    elif out_norm > normal_end + timedelta(minutes=30):
+        overtime = (out_norm - normal_end).total_seconds() / 3600
+        notes.append(f"下班 {out_norm.strftime('%H:%M')}，計為 {fmt_hours(overtime)} 小時加班")
+
+    add_record(
+        records,
+        summary,
+        PairRecord(
+            employee=name,
+            date=date,
+            shift="正職",
+            in_raw=in_ts.strftime(TIME_FORMAT) if in_ts else "",
+            in_norm=in_norm.strftime("%Y-%m-%d %H:%M") if in_norm else "",
+            out_raw=out_ts.strftime(TIME_FORMAT) if out_ts else "",
+            out_norm=out_norm.strftime("%Y-%m-%d %H:%M") if out_norm else "",
+            normal_hours=normal,
+            overtime_hours=overtime,
+            note="；".join(notes),
+        ),
+        force_special=bool(notes),
+    )
+
+
+def handle_hourly(summary: EmployeeSummary, records: list[PairRecord], name: str, in_ts: Optional[datetime], out_ts: Optional[datetime], inferred_no_in: bool) -> None:
+    date = (in_ts or out_ts).date().isoformat()
+    in_norm = round_to_half_hour(in_ts) if in_ts else None
+
+    shift = "未知"
+    normal = 0.0
+    overtime = 0.0
+    notes: list[str] = []
+
+    out_norm: Optional[datetime] = None
+    if in_norm and out_ts:
+        shift_preview, normal_end_preview = classify_shift(in_norm)
+        _ = shift_preview
+        out_norm = normalize_out_time(out_ts, normal_end_preview)
+    elif out_ts:
+        out_norm = round_to_half_hour(out_ts)
+
+    if in_norm and out_norm and in_norm < in_norm.replace(hour=14, minute=0) and out_norm >= out_norm.replace(hour=20, minute=0):
+        shift = "全日連續班"
+        normal = 8.0
+        late_end = out_norm.replace(hour=20, minute=30)
+        if out_norm > late_end:
+            overtime = (out_norm - late_end).total_seconds() / 3600
+        notes.append(f"全日連續班（強制拆分），計為 {fmt_hours(normal)} 小時")
+        if overtime > 0:
+            notes.append(f"加班 {fmt_hours(overtime)} 小時")
+    elif in_norm and out_norm:
+        shift, normal_end = classify_shift(in_norm)
+        worked_hours = (out_norm - in_norm).total_seconds() / 3600
+        normal = min(worked_hours, 4.0)
+        if out_norm - normal_end >= timedelta(minutes=30):
+            normal = (normal_end - in_norm).total_seconds() / 3600
+            overtime = (out_norm - normal_end).total_seconds() / 3600
+            notes.append(f"{shift}，加班 {fmt_hours(overtime)} 小時")
+        if abs(normal - 4.0) > 1e-9:
+            notes.append(f"{shift}，正常時數 {fmt_hours(normal)} 小時（非 4 小時）")
+    elif in_norm and not out_norm:
+        shift, _ = classify_shift(in_norm)
+        normal = 4.0
+        notes.append(f"{shift}，無下班紀錄，計為 4 小時（default）")
+    elif out_norm and not in_norm:
+        shift = "早班" if (out_norm.hour < 15 or (out_norm.hour == 14 and out_norm.minute <= 30)) else "晚班" if out_norm.hour >= 20 else "未知"
+        normal = 4.0
+        notes.append(f"{shift}，無上班紀錄，推算計為 4 小時")
+
+    add_record(
+        records,
+        summary,
+        PairRecord(
+            employee=name,
+            date=date,
+            shift=shift,
+            in_raw=in_ts.strftime(TIME_FORMAT) if in_ts else "",
+            in_norm=in_norm.strftime("%Y-%m-%d %H:%M") if in_norm else "",
+            out_raw=out_ts.strftime(TIME_FORMAT) if out_ts else "",
+            out_norm=out_norm.strftime("%Y-%m-%d %H:%M") if out_norm else "",
+            normal_hours=max(normal, 0.0),
+            overtime_hours=max(overtime, 0.0),
+            note="；".join(notes),
+        ),
+        force_special=bool(notes) or inferred_no_in,
+    )
+
+
 def analyze_employee(name: str, events: list[Event], records: list[PairRecord]) -> EmployeeSummary:
     summary = EmployeeSummary(employee=name, is_full_time=name in FULL_TIME_NAMES)
     current_in: Optional[datetime] = None
@@ -147,12 +244,12 @@ def analyze_employee(name: str, events: list[Event], records: list[PairRecord]) 
     i = 0
     while i < len(events):
         e = events[i]
+
         if e.kind == "clock-in":
             if current_in is not None:
-                # duplicated clock-in if very close
-                if e.timestamp and abs((e.timestamp - current_in).total_seconds()) <= 60:
-                    d = current_in.date().isoformat()
-                    summary.specials.append(f"{d} 重複 clock-in（<=60秒），丟棄後者")
+                next_is_clock_in = i + 1 < len(events) and events[i + 1].kind == "clock-in"
+                if next_is_clock_in and e.timestamp and abs((e.timestamp - current_in).total_seconds()) <= 60:
+                    summary.specials.append(f"{current_in.date().isoformat()} 重複 clock-in（<=60秒），丟棄後者")
                     i += 1
                     continue
                 consume_pair(current_in, None)
@@ -168,10 +265,15 @@ def analyze_employee(name: str, events: list[Event], records: list[PairRecord]) 
         elif e.kind == "clock-out-no-in":
             consume_pair(None, e.timestamp, inferred_no_in=True)
 
-        elif e.kind == "no-clock-out":
-            if current_in is not None:
-                consume_pair(current_in, None)
-                current_in = None
+        elif e.kind == "no-clock-out" and current_in is not None:
+            # Handle edge case: clock-in + no-clock-out + clock-in(<=60s) + no-clock-out.
+            if i + 1 < len(events):
+                nxt = events[i + 1]
+                if nxt.kind == "clock-in" and nxt.timestamp and abs((nxt.timestamp - current_in).total_seconds()) <= 60:
+                    summary.specials.append(f"{current_in.date().isoformat()} 重複 clock-in（<=60秒），丟棄後者")
+                    i += 1
+            consume_pair(current_in, None)
+            current_in = None
 
         i += 1
 
@@ -181,101 +283,9 @@ def analyze_employee(name: str, events: list[Event], records: list[PairRecord]) 
     return summary
 
 
-def handle_full_time(summary: EmployeeSummary, records: list[PairRecord], name: str, in_ts: Optional[datetime], out_ts: Optional[datetime], inferred_no_in: bool) -> None:
-    date = (in_ts or out_ts).date().isoformat()
-    in_norm = round_to_half_hour(in_ts) if in_ts else None
-    out_norm = round_to_half_hour(out_ts) if out_ts else None
-    normal = 8.0 if (in_ts and out_ts) else 0.0
-    overtime = 0.0
-    note_parts: list[str] = []
-
-    if not in_ts or not out_ts or inferred_no_in:
-        note_parts.append("缺打卡，需人工確認")
-    else:
-        threshold = out_norm.replace(hour=20, minute=30)
-        if out_norm > threshold:
-            normal_end = out_norm.replace(hour=20, minute=0)
-            overtime = (out_norm - normal_end).total_seconds() / 3600
-            note_parts.append(f"下班 {out_norm.strftime('%H:%M')}，計為 {fmt_hours(overtime)} 小時加班")
-
-    rec = PairRecord(
-        employee=name,
-        date=date,
-        shift="正職",
-        in_raw=in_ts.strftime(TIME_FORMAT) if in_ts else "",
-        in_norm=in_norm.strftime("%Y-%m-%d %H:%M") if in_norm else "",
-        out_raw=out_ts.strftime(TIME_FORMAT) if out_ts else "",
-        out_norm=out_norm.strftime("%Y-%m-%d %H:%M") if out_norm else "",
-        normal_hours=normal,
-        overtime_hours=overtime,
-        note="；".join(note_parts),
-    )
-    add_record(records, summary, rec, force_special=bool(note_parts))
-
-
-def handle_hourly(summary: EmployeeSummary, records: list[PairRecord], name: str, in_ts: Optional[datetime], out_ts: Optional[datetime], inferred_no_in: bool) -> None:
-    date = (in_ts or out_ts).date().isoformat()
-    in_norm = round_to_half_hour(in_ts) if in_ts else None
-    out_norm = round_to_half_hour(out_ts) if out_ts else None
-
-    normal = 0.0
-    overtime = 0.0
-    note_parts: list[str] = []
-    shift = "未知"
-
-    if in_norm and out_norm and in_norm < in_norm.replace(hour=14, minute=0) and out_norm >= out_norm.replace(hour=20, minute=0):
-        shift = "全日連續班"
-        normal = 8.0
-        late_end = out_norm.replace(hour=20, minute=30)
-        if out_norm > late_end:
-            overtime = (out_norm - late_end).total_seconds() / 3600
-        note_parts.append(f"全日連續班（強制拆分），計為 {fmt_hours(normal)} 小時")
-        if overtime > 0:
-            note_parts.append(f"加班 {fmt_hours(overtime)} 小時")
-    elif in_norm and out_norm:
-        shift, normal_end = classify_shift(in_norm)
-        worked_hours = (out_norm - in_norm).total_seconds() / 3600
-        normal = min(worked_hours, 4.0)
-        if out_norm - normal_end >= timedelta(minutes=30):
-            normal = (normal_end - in_norm).total_seconds() / 3600
-            overtime = (out_norm - normal_end).total_seconds() / 3600
-            note_parts.append(f"{shift}，加班 {fmt_hours(overtime)} 小時")
-        if abs(normal - 4.0) > 1e-9:
-            note_parts.append(f"{shift}，正常時數 {fmt_hours(normal)} 小時（非 4 小時）")
-    elif in_norm and not out_norm:
-        shift, _ = classify_shift(in_norm)
-        normal = 4.0
-        note_parts.append(f"{shift}，無下班紀錄，計為 4 小時（default）")
-    elif out_norm and not in_norm:
-        if out_norm.hour < 15 or (out_norm.hour == 14 and out_norm.minute <= 30):
-            shift = "早班"
-        elif out_norm.hour >= 20:
-            shift = "晚班"
-        else:
-            shift = "未知"
-        normal = 4.0
-        note_parts.append(f"{shift}，無上班紀錄，推算計為 4 小時")
-
-    rec = PairRecord(
-        employee=name,
-        date=date,
-        shift=shift,
-        in_raw=in_ts.strftime(TIME_FORMAT) if in_ts else "",
-        in_norm=in_norm.strftime("%Y-%m-%d %H:%M") if in_norm else "",
-        out_raw=out_ts.strftime(TIME_FORMAT) if out_ts else "",
-        out_norm=out_norm.strftime("%Y-%m-%d %H:%M") if out_norm else "",
-        normal_hours=max(normal, 0.0),
-        overtime_hours=max(overtime, 0.0),
-        note="；".join(note_parts),
-    )
-    add_record(records, summary, rec, force_special=bool(note_parts) or inferred_no_in)
-
-
 def extract_month_key(path: Path) -> str:
     m = re.search(r"(\d{4}-\d{2})-\d{2}~\d{4}-\d{2}-\d{2}", path.name)
-    if m:
-        return m.group(1)
-    return datetime.now().strftime("%Y-%m")
+    return m.group(1) if m else datetime.now().strftime("%Y-%m")
 
 
 def print_summary(summaries: list[EmployeeSummary]) -> None:
@@ -301,18 +311,7 @@ def write_report(records: list[PairRecord], month_key: str) -> Path:
         w = csv.writer(f)
         w.writerow(["員工", "班別", "日期", "上班原始", "上班normalized", "下班原始", "下班normalized", "正常時數", "加班時數", "備註"])
         for r in records:
-            w.writerow([
-                r.employee,
-                r.shift,
-                r.date,
-                r.in_raw,
-                r.in_norm,
-                r.out_raw,
-                r.out_norm,
-                fmt_hours(r.normal_hours),
-                fmt_hours(r.overtime_hours),
-                r.note,
-            ])
+            w.writerow([r.employee, r.shift, r.date, r.in_raw, r.in_norm, r.out_raw, r.out_norm, fmt_hours(r.normal_hours), fmt_hours(r.overtime_hours), r.note])
     return out_path
 
 
@@ -321,8 +320,7 @@ def main() -> None:
     parser.add_argument("csv_path", help="Path to iCHEF clock-in/out CSV")
     args = parser.parse_args()
 
-    csv_path = Path(args.csv_path)
-    employees = parse_csv(csv_path)
+    employees = parse_csv(Path(args.csv_path))
     records: list[PairRecord] = []
     summaries: list[EmployeeSummary] = []
 
@@ -333,7 +331,7 @@ def main() -> None:
         summaries.append(summary)
 
     print_summary(summaries)
-    out_path = write_report(records, extract_month_key(csv_path))
+    out_path = write_report(records, extract_month_key(Path(args.csv_path)))
     print(f"CSV report generated: {out_path}")
 
 
