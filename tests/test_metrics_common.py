@@ -6,6 +6,7 @@ from metrics_common import (
     count_protein_bowls,
     count_protein_non_bowls,
     count_set_meal_proteins,
+    get_discount_factor,
     infer_quantity_from_price,
     normalize_payment,
     is_in_period,
@@ -185,54 +186,74 @@ class TestIsInPeriod:
 # infer_quantity_from_price
 # ---------------------------------------------------------------------------
 
+class TestGetDiscountFactor:
+    def test_during_trial(self):
+        assert get_discount_factor("2026-03-31") == 0.9
+
+    def test_after_trial(self):
+        assert get_discount_factor("2026-04-01") == 1.0
+
+    def test_with_timestamp(self):
+        assert get_discount_factor(pd.Timestamp("2026-04-01 12:00")) == 1.0
+
+    def test_with_date_object(self):
+        from datetime import date
+        assert get_discount_factor(date(2026, 3, 15)) == 0.9
+
+
+# --- 試營運期間（9 折）---
+
+TRIAL_DATE = "2026-03-01"
+
+
 class TestInferQuantityFromPrice:
     def test_single_chicken_bowl(self):
         # 160 × 0.9 = 144
-        assert infer_quantity_from_price("雞胸肉自選碗", 144.0) == 1
+        assert infer_quantity_from_price("雞胸肉自選碗", 144.0, TRIAL_DATE) == 1
 
     def test_triple_chicken_bowl(self):
         # 160 × 3 × 0.9 = 432
-        assert infer_quantity_from_price("雞胸肉自選碗", 432.0) == 3
+        assert infer_quantity_from_price("雞胸肉自選碗", 432.0, TRIAL_DATE) == 3
 
     def test_double_chicken_bowl(self):
         # 160 × 2 × 0.9 = 288
-        assert infer_quantity_from_price("雞胸肉自選碗", 288.0) == 2
+        assert infer_quantity_from_price("雞胸肉自選碗", 288.0, TRIAL_DATE) == 2
 
     def test_chicken_with_addon(self):
         # 216 不是 160 的整數倍 → 算 1 碗（有加購）
-        assert infer_quantity_from_price("雞胸肉自選碗", 216.0) == 1
+        assert infer_quantity_from_price("雞胸肉自選碗", 216.0, TRIAL_DATE) == 1
 
     def test_single_shrimp_bowl(self):
         # 170 × 0.9 = 153
-        assert infer_quantity_from_price("鮮蝦自選碗", 153.0) == 1
+        assert infer_quantity_from_price("鮮蝦自選碗", 153.0, TRIAL_DATE) == 1
 
     def test_double_shrimp_bowl(self):
         # 170 × 2 × 0.9 = 306
-        assert infer_quantity_from_price("鮮蝦自選碗", 306.0) == 2
+        assert infer_quantity_from_price("鮮蝦自選碗", 306.0, TRIAL_DATE) == 2
 
     def test_shrimp_with_addon(self):
         # 225 不是 170 的整數倍 → 算 1 碗（有加購）
-        assert infer_quantity_from_price("鮮蝦自選碗", 225.0) == 1
+        assert infer_quantity_from_price("鮮蝦自選碗", 225.0, TRIAL_DATE) == 1
 
     def test_shrimp_double_with_same_addon(self):
         # (170 + 15) × 2 × 0.9 = 333
-        assert infer_quantity_from_price("鮮蝦自選碗", 333.0) == 2
+        assert infer_quantity_from_price("鮮蝦自選碗", 333.0, TRIAL_DATE) == 2
 
     def test_chicken_single_with_large_addons(self):
         # (160 + 50 + 70 + 80) × 0.9 = 324
-        assert infer_quantity_from_price("雞胸肉自選碗", 324.0) == 1
+        assert infer_quantity_from_price("雞胸肉自選碗", 324.0, TRIAL_DATE) == 1
 
     def test_unknown_bowl(self):
         # 未知品項 → 算 1 碗
-        assert infer_quantity_from_price("神秘碗", 999.0) == 1
+        assert infer_quantity_from_price("神秘碗", 999.0, TRIAL_DATE) == 1
 
     def test_set_meal_single(self):
         # 高蛋白健身碗 220 × 0.9 = 198
-        assert infer_quantity_from_price("高蛋白健身碗", 198.0) == 1
+        assert infer_quantity_from_price("高蛋白健身碗", 198.0, TRIAL_DATE) == 1
 
     def test_set_meal_double(self):
         # 高蛋白健身碗 220 × 2 × 0.9 = 396
-        assert infer_quantity_from_price("高蛋白健身碗", 396.0) == 2
+        assert infer_quantity_from_price("高蛋白健身碗", 396.0, TRIAL_DATE) == 2
 
     @pytest.mark.parametrize(
         ("item_name", "price", "expected"),
@@ -242,7 +263,29 @@ class TestInferQuantityFromPrice:
         ],
     )
     def test_sukiyaki_pork_bowl_quantities(self, item_name, price, expected):
-        assert infer_quantity_from_price(item_name, price) == expected
+        assert infer_quantity_from_price(item_name, price, TRIAL_DATE) == expected
+
+
+# --- 正式營運（原價）---
+
+POST_TRIAL_DATE = "2026-04-01"
+
+
+class TestInferQuantityFromPricePostDiscount:
+    @pytest.mark.parametrize(
+        ("item_name", "price", "expected"),
+        [
+            ("雞胸肉自選碗", 160.0, 1),
+            ("雞胸肉自選碗", 320.0, 2),
+            ("雞胸肉自選碗", 480.0, 3),
+            ("鮮蝦自選碗", 170.0, 1),
+            ("鮮蝦自選碗", 340.0, 2),
+            ("高蛋白健身碗", 220.0, 1),
+            ("高蛋白健身碗", 440.0, 2),
+        ],
+    )
+    def test_post_discount_quantities(self, item_name, price, expected):
+        assert infer_quantity_from_price(item_name, price, POST_TRIAL_DATE) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -251,27 +294,27 @@ class TestInferQuantityFromPrice:
 
 class TestCountBowlsSmart:
     def test_single_bowl(self):
-        assert count_bowls_smart("雞胸肉自選碗 $144.0") == 1
+        assert count_bowls_smart("雞胸肉自選碗 $144.0", TRIAL_DATE) == 1
 
     def test_triple_chicken_bowl(self):
         # 實際案例：3 碗雞胸肉被合併成一個項目
-        assert count_bowls_smart("雞胸肉自選碗 $432.0") == 3
+        assert count_bowls_smart("雞胸肉自選碗 $432.0", TRIAL_DATE) == 3
 
     def test_mixed_bowls_with_triple(self):
         # 實際案例：#-00000447
         items = "鮮蝦自選碗 $225.0,嚴選生鮭魚自選碗 $261.0,雞胸肉自選碗 $432.0,雞胸肉自選碗 $216.0"
         # 1 + 1 + 3 + 1 = 6
-        assert count_bowls_smart(items) == 6
+        assert count_bowls_smart(items, TRIAL_DATE) == 6
 
     def test_double_bowl(self):
-        assert count_bowls_smart("雞胸肉自選碗 $288.0") == 2
+        assert count_bowls_smart("雞胸肉自選碗 $288.0", TRIAL_DATE) == 2
 
     def test_bowl_with_addon(self):
         # 有加購的碗算 1 碗
-        assert count_bowls_smart("雞胸肉自選碗 $216.0") == 1
+        assert count_bowls_smart("雞胸肉自選碗 $216.0", TRIAL_DATE) == 1
 
     def test_bag_excluded(self):
-        assert count_bowls_smart("雞胸肉自選碗 $144.0, 提袋 $2.0") == 1
+        assert count_bowls_smart("雞胸肉自選碗 $144.0, 提袋 $2.0", TRIAL_DATE) == 1
 
     def test_no_price_info(self):
         # 沒有價格資訊，算 1 碗
@@ -280,13 +323,20 @@ class TestCountBowlsSmart:
     def test_mixed_bowls_with_sukiyaki_pork(self):
         items = "壽喜燒豬自選碗 $288.0,雞胸肉自選碗 $144.0,加購一份壽喜燒豬 $50.0,味噌湯 $30.0"
         # 壽喜燒豬 2 碗 + 雞胸肉 1 碗，加購與湯不算碗
-        assert count_bowls_smart(items) == 3
+        assert count_bowls_smart(items, TRIAL_DATE) == 3
 
     def test_empty_string(self):
         assert count_bowls_smart("") == 0
 
     def test_none_input(self):
         assert count_bowls_smart(None) == 0
+
+    # --- 正式營運 ---
+    def test_single_bowl_post_discount(self):
+        assert count_bowls_smart("雞胸肉自選碗 $160.0", POST_TRIAL_DATE) == 1
+
+    def test_triple_chicken_post_discount(self):
+        assert count_bowls_smart("雞胸肉自選碗 $480.0", POST_TRIAL_DATE) == 3
 
 
 # ---------------------------------------------------------------------------

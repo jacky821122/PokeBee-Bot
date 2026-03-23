@@ -47,7 +47,7 @@ def calculate_weekly_metrics(start_date: str, end_date: str):
 
     df["date"] = df["checkout_time"].dt.date
     df["hour"] = df["checkout_time"].dt.hour + df["checkout_time"].dt.minute / 60
-    df["bowls"] = df["items_text"].apply(count_bowls_smart)
+    df["bowls"] = df.apply(lambda row: count_bowls_smart(row["items_text"], order_date=row["checkout_time"]), axis=1)
     df["is_peak"] = df["hour"].apply(is_peak)
 
     # ---------- 基礎量體 ----------

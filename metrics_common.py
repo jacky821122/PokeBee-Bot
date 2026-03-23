@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date as _date_type
 from pathlib import Path
 from typing import Iterable, Optional
 import pandas as pd
@@ -27,8 +28,16 @@ BOWL_BASE_PRICES = {
     "海味雙魚碗": 260,
 }
 
-# 試營運折扣係數
-DISCOUNT_FACTOR = 0.9
+# 試營運折扣：2026/3/31 前全單 9 折，4/1 起恢復原價
+DISCOUNT_END_DATE = _date_type(2026, 3, 31)
+
+def get_discount_factor(order_date) -> float:
+    """依訂單日期回傳折扣係數（試營運 9 折 or 原價）。"""
+    if isinstance(order_date, str):
+        order_date = _date_type.fromisoformat(order_date)
+    if hasattr(order_date, 'date'):
+        order_date = order_date.date()
+    return 0.9 if order_date <= DISCOUNT_END_DATE else 1.0
 
 # 常見加購價格（可依營運實際價格調整）
 KNOWN_ADDON_PRICES = [15, 30, 50, 60, 70, 80, 90]
@@ -88,7 +97,7 @@ def count_bowls(items_text: str) -> int:
     items = _split_items(items_text)
     return sum(1 for item in items if _is_valid_bowl_item(item))
 
-def infer_quantity_from_price(item_name: str, price: float) -> int:
+def infer_quantity_from_price(item_name: str, price: float, order_date=None) -> int:
     """
     從價格推斷數量（處理同一品項點多份的情況）
 
@@ -106,7 +115,8 @@ def infer_quantity_from_price(item_name: str, price: float) -> int:
         return 1  # 未知品項，預設 1
 
     # 計算理論上的原價
-    original_price = price / DISCOUNT_FACTOR
+    discount = get_discount_factor(order_date if order_date is not None else DISCOUNT_END_DATE)
+    original_price = price / discount
     tolerance = 5
 
     # 嘗試由高到低推 quantity，盡量捕捉「同款多碗 + 每碗相同加購」的情境
@@ -152,13 +162,13 @@ def _is_plausible_addon_amount(amount: float, *, tolerance: int = 5) -> bool:
     high = min(len(reachable) - 1, target + tolerance)
     return any(reachable[value] for value in range(low, high + 1))
 
-def count_bowls_smart(items_text: str) -> int:
+def count_bowls_smart(items_text: str, order_date=None) -> int:
     """
     智能碗數計算（考慮數量推斷）
 
     從價格推斷是否為多份同一品項，能正確處理：
-    - 雞胸肉自選碗 $432 → 3 碗（160 × 3 × 0.9）
-    - 雞胸肉自選碗 $216 → 1 碗（有加購，不是整數倍）
+    - 雞胸肉自選碗 $432 → 3 碗（160 × 3 × 0.9，試營運期間）
+    - 雞胸肉自選碗 $480 → 3 碗（160 × 3，正式營運）
     """
     items = _split_items(items_text)
     total_bowls = 0
@@ -172,7 +182,7 @@ def count_bowls_smart(items_text: str) -> int:
             try:
                 name, price_str = item.rsplit("$", 1)
                 price = float(price_str)
-                quantity = infer_quantity_from_price(name.strip(), price)
+                quantity = infer_quantity_from_price(name.strip(), price, order_date)
                 total_bowls += quantity
             except ValueError:
                 total_bowls += 1  # 解析失敗，算 1 碗

@@ -150,7 +150,7 @@ def render_weekly_report(data: dict,
     # ========================
 
     report = f"""
-📊 試營運週報
+📊 週報
 期間：{start_date} – {end_date}
 
 ━━━━━━━━━━━━━━━━━━

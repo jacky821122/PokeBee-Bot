@@ -37,7 +37,7 @@ def _load_daily_order_frame(target_date: str):
         return df
 
     df = df.copy()
-    df["bowls"] = df["items_text"].apply(count_bowls_smart)
+    df["bowls"] = df["items_text"].apply(lambda text: count_bowls_smart(text, order_date=target_date))
     return df
 
 
