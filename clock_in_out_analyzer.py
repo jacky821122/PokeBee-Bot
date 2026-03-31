@@ -389,6 +389,12 @@ def write_xlsx_report(records: list[PairRecord], summaries: list[EmployeeSummary
         else:
             ws_summary.cell(row=row, column=1, value="  無")
             row += 1
+        if s.overtime_specials:
+            ws_summary.cell(row=row, column=1, value="加班:")
+            row += 1
+            for line in s.overtime_specials:
+                ws_summary.cell(row=row, column=1, value=f"  {line}")
+                row += 1
         row += 1  # blank row between employees
 
     # Sheet 2: 明細
