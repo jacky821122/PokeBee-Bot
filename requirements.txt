@@ -19,5 +19,8 @@ requests==2.32.5
 # Type validation
 typing-extensions==4.15.0
 
+# Excel output
+openpyxl==3.1.5
+
 # Testing
 pytest==8.3.5

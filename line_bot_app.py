@@ -157,16 +157,43 @@ def handle_file_message(event):
     file_name = event.message.file_name
 
     # 2. 檢查檔名（iCHEF 原始格式）
-    if not (
-        file_name.startswith("Payment_Void Record_")
-        and file_name.endswith(".csv")
-    ) and not (
-        file_name.startswith("modifier")
-        and file_name.endswith(".csv")
-    ):
+    is_payment = file_name.startswith("Payment_Void Record_") and file_name.endswith(".csv")
+    is_modifier = file_name.startswith("modifier") and file_name.endswith(".csv")
+    is_clock = file_name.startswith("Clock-in_out Record_") and file_name.endswith(".csv")
+
+    if not is_payment and not is_modifier and not is_clock:
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text="❌ 檔名不是 iCHEF 匯出格式，請直接上傳原始 CSV")
+        )
+        return
+
+    if is_clock:
+        # Clock-in/out CSV — save to data_new/clock_in_out/
+        clock_dir = _PROJECT_ROOT / "data_new" / "clock_in_out"
+        clock_dir.mkdir(parents=True, exist_ok=True)
+        save_path = clock_dir / file_name
+
+        message_content = line_bot_api.get_message_content(event.message.id)
+        with open(save_path, "wb") as f:
+            for chunk in message_content.iter_content():
+                f.write(chunk)
+
+        try:
+            from clock_in_out_analyzer import analyze_csv, write_xlsx_report, format_summary
+            records, summaries, month_key = analyze_csv(save_path)
+            write_xlsx_report(records, summaries, month_key)
+            result = format_summary(summaries)
+        except Exception as e:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=f"❌ 打卡分析失敗：{e}")
+            )
+            return
+
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=result)
         )
         return
 

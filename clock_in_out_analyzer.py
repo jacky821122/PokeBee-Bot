@@ -215,6 +215,14 @@ def handle_hourly(summary: EmployeeSummary, records: list[PairRecord], name: str
             notes.append(f"{shift}，加班 {fmt_hours(overtime)} 小時")
         if abs(normal - 4.0) > 1e-9:
             notes.append(f"{shift}，正常時數 {fmt_hours(normal)} 小時（非 4 小時）")
+        # Guard: if total worked hours ≤ 4.0, no overtime (shift offset pattern)
+        worked_hours = (out_norm - in_norm).total_seconds() / 3600
+        if worked_hours <= 4.0:
+            normal = worked_hours
+            overtime = 0.0
+            notes = []
+            if abs(normal - 4.0) > 1e-9:
+                notes.append(f"{shift}，正常時數 {fmt_hours(normal)} 小時（非 4 小時）")
     elif in_norm and not out_norm:
         shift, _ = classify_shift(in_norm)
         normal = 4.0
@@ -299,19 +307,91 @@ def extract_month_key(path: Path) -> str:
     return m.group(1) if m else datetime.now().strftime("%Y-%m")
 
 
-def print_summary(summaries: list[EmployeeSummary]) -> None:
+def format_summary(summaries: list[EmployeeSummary]) -> str:
+    lines: list[str] = []
     for s in summaries:
         role = "正職" if s.is_full_time else "計時"
-        print(f"{s.employee}（{role}）:")
-        print(f"正常時數 {fmt_hours(s.normal_hours)} 小時")
-        print(f"加班時數 {fmt_hours(s.overtime_hours)} 小時")
-        print("特殊班別:")
+        lines.append(f"{s.employee}（{role}）:")
+        lines.append(f"正常時數 {fmt_hours(s.normal_hours)} 小時")
+        lines.append(f"加班時數 {fmt_hours(s.overtime_hours)} 小時")
+        lines.append("特殊班別:")
         if s.specials:
             for line in s.specials:
-                print(f"  {line}")
+                lines.append(f"  {line}")
         else:
-            print("  無")
-        print()
+            lines.append("  無")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def print_summary(summaries: list[EmployeeSummary]) -> None:
+    print(format_summary(summaries))
+
+
+def write_xlsx_report(records: list[PairRecord], summaries: list[EmployeeSummary], month_key: str) -> Path:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    wb = Workbook()
+
+    # Sheet 1: 摘要
+    ws_summary = wb.active
+    ws_summary.title = "摘要"
+    bold = Font(bold=True)
+    row = 1
+    for s in summaries:
+        role = "正職" if s.is_full_time else "計時"
+        cell = ws_summary.cell(row=row, column=1, value=f"{s.employee}（{role}）")
+        cell.font = bold
+        row += 1
+        ws_summary.cell(row=row, column=1, value=f"正常時數 {fmt_hours(s.normal_hours)} 小時")
+        row += 1
+        ws_summary.cell(row=row, column=1, value=f"加班時數 {fmt_hours(s.overtime_hours)} 小時")
+        row += 1
+        ws_summary.cell(row=row, column=1, value="特殊班別:")
+        row += 1
+        if s.specials:
+            for line in s.specials:
+                ws_summary.cell(row=row, column=1, value=f"  {line}")
+                row += 1
+        else:
+            ws_summary.cell(row=row, column=1, value="  無")
+            row += 1
+        row += 1  # blank row between employees
+
+    # Sheet 2: 明細
+    ws_detail = wb.create_sheet("明細")
+    headers = ["員工", "班別", "日期", "上班原始", "上班normalized", "下班原始", "下班normalized", "正常時數", "加班時數", "備註"]
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws_detail.cell(row=1, column=col_idx, value=h)
+        cell.font = bold
+    for row_idx, r in enumerate(records, 2):
+        ws_detail.cell(row=row_idx, column=1, value=r.employee)
+        ws_detail.cell(row=row_idx, column=2, value=r.shift)
+        ws_detail.cell(row=row_idx, column=3, value=r.date)
+        ws_detail.cell(row=row_idx, column=4, value=r.in_raw)
+        ws_detail.cell(row=row_idx, column=5, value=r.in_norm)
+        ws_detail.cell(row=row_idx, column=6, value=r.out_raw)
+        ws_detail.cell(row=row_idx, column=7, value=r.out_norm)
+        ws_detail.cell(row=row_idx, column=8, value=fmt_hours(r.normal_hours))
+        ws_detail.cell(row=row_idx, column=9, value=fmt_hours(r.overtime_hours))
+        ws_detail.cell(row=row_idx, column=10, value=r.note)
+
+    # Auto-fit column widths (approximate)
+    for ws in [ws_summary, ws_detail]:
+        for col in ws.columns:
+            max_len = 0
+            col_letter = col[0].column_letter
+            for cell in col:
+                if cell.value:
+                    max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = min(max_len + 4, 60)
+
+    out_dir = Path("data/clock_in_out")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"clock_report_{month_key}.xlsx"
+    wb.save(out_path)
+    return out_path
 
 
 def write_report(records: list[PairRecord], month_key: str) -> Path:
@@ -326,12 +406,8 @@ def write_report(records: list[PairRecord], month_key: str) -> Path:
     return out_path
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Analyze iCHEF clock-in/out CSV")
-    parser.add_argument("csv_path", help="Path to iCHEF clock-in/out CSV")
-    args = parser.parse_args()
-
-    employees = parse_csv(Path(args.csv_path))
+def analyze_csv(csv_path: Path) -> tuple[list[PairRecord], list[EmployeeSummary], str]:
+    employees = parse_csv(csv_path)
     records: list[PairRecord] = []
     summaries: list[EmployeeSummary] = []
 
@@ -341,9 +417,22 @@ def main() -> None:
             continue
         summaries.append(summary)
 
+    month_key = extract_month_key(csv_path)
+    return records, summaries, month_key
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Analyze iCHEF clock-in/out CSV")
+    parser.add_argument("csv_path", help="Path to iCHEF clock-in/out CSV")
+    args = parser.parse_args()
+
+    records, summaries, month_key = analyze_csv(Path(args.csv_path))
+
     print_summary(summaries)
-    out_path = write_report(records, extract_month_key(Path(args.csv_path)))
+    out_path = write_report(records, month_key)
     print(f"CSV report generated: {out_path}")
+    xlsx_path = write_xlsx_report(records, summaries, month_key)
+    print(f"XLSX report generated: {xlsx_path}")
 
 
 if __name__ == "__main__":

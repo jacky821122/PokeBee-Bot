@@ -1,4 +1,9 @@
 data
+
+# Clock-in/out data files (raw CSV/XLSX from iCHEF)
+data_new/clock_in_out/*.csv
+data_new/clock_in_out/*.xlsx
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

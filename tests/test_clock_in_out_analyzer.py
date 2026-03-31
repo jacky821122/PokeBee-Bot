@@ -292,6 +292,22 @@ class TestAnalyzeEmployeeHourly:
         assert late.shift == "晚班2"
         assert late.normal_hours == 4.0
 
+    # --- shifted schedule (阿姨模式) ---
+
+    def test_shifted_schedule_no_overtime(self):
+        # in 10:30→10:30, out 14:36→14:30 (grace→floor), worked=4.0 → no overtime
+        s, recs = run([ci("10:30"), co("14:36")])
+        assert recs[0].shift == "早班"
+        assert recs[0].normal_hours == 4.0
+        assert recs[0].overtime_hours == 0.0
+
+    def test_shifted_schedule_with_real_overtime(self):
+        # in 10:00→10:00, out 14:35→14:30, worked=4.5 → normal=4.0, overtime=0.5
+        s, recs = run([ci("10:00"), co("14:35")])
+        assert recs[0].shift == "早班"
+        assert recs[0].normal_hours == 4.0
+        assert recs[0].overtime_hours == 0.5
+
     # --- summary accumulation ---
 
     def test_summary_totals_across_pairs(self):
