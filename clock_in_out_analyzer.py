@@ -39,10 +39,13 @@ class EmployeeSummary:
     normal_hours: float = 0.0
     overtime_hours: float = 0.0
     specials: list[str] = None
+    overtime_specials: list[str] = None
 
     def __post_init__(self) -> None:
         if self.specials is None:
             self.specials = []
+        if self.overtime_specials is None:
+            self.overtime_specials = []
 
 
 def round_to_half_hour(dt: datetime) -> datetime:
@@ -154,8 +157,10 @@ def handle_full_time(summary: EmployeeSummary, records: list[PairRecord], name: 
     overtime = 0.0
     notes: list[str] = []
 
-    if not in_ts or not out_ts or inferred_no_in:
-        notes.append("缺打卡，需人工確認")
+    if inferred_no_in or not in_ts:
+        notes.append("缺上班打卡，需人工確認")
+    elif not out_ts:
+        notes.append("缺下班打卡，需人工確認")
     elif out_norm >= normal_end + timedelta(minutes=30):
         overtime = (out_norm - normal_end).total_seconds() / 3600
         notes.append(f"下班 {out_norm.strftime('%H:%M')}，計為 {fmt_hours(overtime)} 小時加班")
@@ -264,7 +269,7 @@ def apply_daily_overtime_for_pt(records: list[PairRecord], summary: EmployeeSumm
             day_recs[-1].overtime_hours = overtime
             summary.normal_hours += 8.0
             summary.overtime_hours += overtime
-            summary.specials.append(
+            summary.overtime_specials.append(
                 f"{date} 日總時數 {fmt_hours(total)} 小時，計為 {fmt_hours(overtime)} 小時加班"
             )
         else:
@@ -343,6 +348,10 @@ def format_summary(summaries: list[EmployeeSummary]) -> str:
                 lines.append(f"  {line}")
         else:
             lines.append("  無")
+        if s.overtime_specials:
+            lines.append("加班:")
+            for line in s.overtime_specials:
+                lines.append(f"  {line}")
         lines.append("")
     return "\n".join(lines)
 

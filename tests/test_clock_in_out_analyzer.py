@@ -354,7 +354,7 @@ class TestAnalyzeEmployeeFullTime:
 
     def test_missing_clock_out_flagged_and_zero_hours(self):
         s, recs = self._run([ci("10:00"), nco()])
-        assert "缺打卡" in recs[0].note
+        assert "缺下班打卡" in recs[0].note
         assert recs[0].normal_hours == 0.0
 
     def test_accumulates_across_multiple_days(self):
