@@ -49,6 +49,16 @@ python daily_metrics.py --date YYYY-MM-DD
 python weekly_generator.py --start YYYY-MM-DD --end YYYY-MM-DD
 ```
 
+## Employee Hours
+
+Calculate employee clock-in/out hours from iCHEF CSV exports:
+
+```sh
+python clock_in_out_analyzer.py "data/clock_in_out/Clock-in_out Record_YYYY-MM-DD~YYYY-MM-DD.csv"
+```
+
+Outputs a console summary (normal hours, overtime, flagged shifts) and a detailed report at `data/clock_in_out/clock_report_YYYY-MM.{csv,xlsx}`.
+
 ## Testing
 
 ```sh

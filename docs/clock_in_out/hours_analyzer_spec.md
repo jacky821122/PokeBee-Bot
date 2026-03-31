@@ -78,7 +78,7 @@ minute ≥ 45   → round up to next :00 (+1 hour, minute=0)
 
 ## 輸出格式
 
-### Console（仿 counting_rule.txt 範例）
+### Console
 
 ```
 小王叭（正職）:

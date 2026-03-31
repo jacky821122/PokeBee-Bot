@@ -37,6 +37,10 @@ python weekly_generator.py --start YYYY-MM-DD --end YYYY-MM-DD
 # Generate weekly report via LINE bot
 # Send: 週報 YYYY-MM-DD YYYY-MM-DD
 # Or:   週報 上週
+
+# Calculate employee clock-in/out hours
+python clock_in_out_analyzer.py <csv_path>
+# Outputs console summary + data/clock_in_out/clock_report_YYYY-MM.{csv,xlsx}
 ```
 
 ```sh
@@ -60,6 +64,7 @@ Tests cover `metrics_common` (pure unit, 32 cases) and `calculate_daily_metrics`
 - `weekly_generator.py` — aggregates metrics across a date range for the weekly report
 - `report_renderer.py` — formats metrics dicts into LINE message text
 - `import_csv.py` / `import_modifier_csv.py` — parse iCHEF CSVs and upsert into SQLite
+- `clock_in_out_analyzer.py` — CLI tool; parses iCHEF clock-in/out CSVs and calculates employee hours (normal + overtime) per counting rules; outputs console summary and `data/clock_in_out/clock_report_YYYY-MM.{csv,xlsx}`; counting rules and algorithm design documented in `docs/clock_in_out/hours_analyzer_spec.md`
 
 **Database:** SQLite at `data/db/ichef.db`
 - `raw_orders`: order records (checkout_time, items_text, invoice_amount, payment_method, order_status, …). Deduped by UNIQUE(invoice_number, checkout_time).
