@@ -10,6 +10,8 @@ PokeBee-Bot is a LINE chatbot for a poke bowl restaurant that imports iCHEF POS 
 
 After completing any code or documentation changes, always commit and push immediately without waiting to be asked.
 
+When adding or updating dependencies, update **both** `requirements.txt` and `environment.yml` (under `pip:` section). They must stay in sync — `requirements.txt` is used by venv (WSL2), `environment.yml` is used by conda (NAS).
+
 ## Commands
 
 ```sh
