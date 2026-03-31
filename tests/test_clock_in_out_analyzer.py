@@ -225,20 +225,19 @@ class TestAnalyzeEmployeeHourly:
     # --- 全日連續班 ---
 
     def test_full_day_shift(self):
-        # 許凱惟 02-02: in 10:00, out 20:00 → 全日連續班, worked 10hr
-        # Daily total 10 > 8 → 8 normal + 2 overtime
+        # 許凱惟 02-02: in 10:00, out 20:00 → 全日連續班
+        # Treated as 4hr + 4hr (forgot to clock out/in during break) → 8 normal
         s, recs = run([ci("10:00"), co("20:00")])
         assert recs[0].shift == "全日連續班"
         assert recs[0].normal_hours == 8.0
-        assert recs[0].overtime_hours == 2.0
+        assert recs[0].overtime_hours == 0.0
 
     def test_full_day_shift_with_overtime(self):
-        # in 10:00, out 21:00 → 全日連續班, worked 11hr
-        # Daily total 11 > 8 → 8 normal + 3 overtime
+        # in 10:00, out 21:00 → 全日連續班, out_norm 21:00 > 20:30 → 0.5hr overtime
         s, recs = run([ci("10:00"), co("21:00")])
         assert recs[0].shift == "全日連續班"
         assert recs[0].normal_hours == 8.0
-        assert recs[0].overtime_hours == 3.0
+        assert recs[0].overtime_hours == 0.5
 
     # --- 缺打卡 ---
 

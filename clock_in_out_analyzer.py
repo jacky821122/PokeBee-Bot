@@ -198,8 +198,10 @@ def handle_hourly(summary: EmployeeSummary, records: list[PairRecord], name: str
 
     if in_norm and out_norm and in_norm < in_norm.replace(hour=14, minute=0) and out_norm >= out_norm.replace(hour=20, minute=0):
         shift = "全日連續班"
-        worked_hours = (out_norm - in_norm).total_seconds() / 3600
-        normal = worked_hours
+        normal = 8.0
+        late_end = out_norm.replace(hour=20, minute=30)
+        if out_norm > late_end:
+            overtime = (out_norm - late_end).total_seconds() / 3600
         notes.append("全日連續班（強制拆分）")
     elif in_norm and out_norm:
         shift, _ = classify_shift(in_norm)

@@ -57,7 +57,7 @@ minute ≥ 45   → round up to next :00 (+1 hour, minute=0)
 | 情況 | 正常時數（per record） | 加班時數 | Flag |
 |------|---------|---------|------|
 | 完整班（both in/out）| norm_out - norm_in（實際時數） | 0（per record，見日計加班） | 若正常時數 ≠ 4hr |
-| 全日連續班（強制拆分）| norm_out - norm_in（實際時數） | 0（per record，見日計加班） | 必定 flag |
+| 全日連續班（強制拆分）| 8hr（4+4，忘記中間打卡，不計休息時間） | 若 norm_out > 20:30：差值 | 必定 flag |
 | 只有 clock-in（no clock-out）| 4hr（default） | 0 | 必定 flag |
 | 只有 clock-out（no clock-in）| 從 norm_out 推算：若 ≤ 14:30 → 早班4hr；≥ 20:00 → 晚班4hr | 0 | 必定 flag |
 
