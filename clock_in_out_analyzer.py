@@ -198,31 +198,15 @@ def handle_hourly(summary: EmployeeSummary, records: list[PairRecord], name: str
 
     if in_norm and out_norm and in_norm < in_norm.replace(hour=14, minute=0) and out_norm >= out_norm.replace(hour=20, minute=0):
         shift = "全日連續班"
-        normal = 8.0
-        late_end = out_norm.replace(hour=20, minute=30)
-        if out_norm > late_end:
-            overtime = (out_norm - late_end).total_seconds() / 3600
-        notes.append(f"全日連續班（強制拆分），計為 {fmt_hours(normal)} 小時")
-        if overtime > 0:
-            notes.append(f"加班 {fmt_hours(overtime)} 小時")
-    elif in_norm and out_norm:
-        shift, normal_end = classify_shift(in_norm)
         worked_hours = (out_norm - in_norm).total_seconds() / 3600
-        normal = min(worked_hours, 4.0)
-        if out_norm - normal_end >= timedelta(minutes=30):
-            normal = (normal_end - in_norm).total_seconds() / 3600
-            overtime = (out_norm - normal_end).total_seconds() / 3600
-            notes.append(f"{shift}，加班 {fmt_hours(overtime)} 小時")
+        normal = worked_hours
+        notes.append("全日連續班（強制拆分）")
+    elif in_norm and out_norm:
+        shift, _ = classify_shift(in_norm)
+        worked_hours = (out_norm - in_norm).total_seconds() / 3600
+        normal = worked_hours
         if abs(normal - 4.0) > 1e-9:
             notes.append(f"{shift}，正常時數 {fmt_hours(normal)} 小時（非 4 小時）")
-        # Guard: if total worked hours ≤ 4.0, no overtime (shift offset pattern)
-        worked_hours = (out_norm - in_norm).total_seconds() / 3600
-        if worked_hours <= 4.0:
-            normal = worked_hours
-            overtime = 0.0
-            notes = []
-            if abs(normal - 4.0) > 1e-9:
-                notes.append(f"{shift}，正常時數 {fmt_hours(normal)} 小時（非 4 小時）")
     elif in_norm and not out_norm:
         shift, _ = classify_shift(in_norm)
         normal = 4.0
@@ -249,6 +233,40 @@ def handle_hourly(summary: EmployeeSummary, records: list[PairRecord], name: str
         ),
         force_special=bool(notes) or inferred_no_in,
     )
+
+
+def apply_daily_overtime_for_pt(records: list[PairRecord], summary: EmployeeSummary) -> None:
+    """For PT employees, overtime only applies when daily total hours > 8."""
+    from collections import defaultdict
+
+    day_map: dict[str, list[PairRecord]] = defaultdict(list)
+    for r in records:
+        if r.employee == summary.employee:
+            day_map[r.date].append(r)
+
+    summary.normal_hours = 0.0
+    summary.overtime_hours = 0.0
+
+    for date, day_recs in sorted(day_map.items()):
+        total = sum(r.normal_hours + r.overtime_hours for r in day_recs)
+
+        if total > 8.0:
+            overtime = total - 8.0
+            remaining_normal = 8.0
+            for r in day_recs[:-1]:
+                r_total = r.normal_hours + r.overtime_hours
+                r.normal_hours = min(r_total, remaining_normal)
+                r.overtime_hours = 0.0
+                remaining_normal = max(0.0, remaining_normal - r.normal_hours)
+            day_recs[-1].normal_hours = remaining_normal
+            day_recs[-1].overtime_hours = overtime
+            summary.normal_hours += 8.0
+            summary.overtime_hours += overtime
+            summary.specials.append(
+                f"{date} 日總時數 {fmt_hours(total)} 小時，計為 {fmt_hours(overtime)} 小時加班"
+            )
+        else:
+            summary.normal_hours += total
 
 
 def analyze_employee(name: str, events: list[Event], records: list[PairRecord]) -> EmployeeSummary:
@@ -298,6 +316,9 @@ def analyze_employee(name: str, events: list[Event], records: list[PairRecord]) 
 
     if current_in is not None:
         consume_pair(current_in, None)
+
+    if not summary.is_full_time:
+        apply_daily_overtime_for_pt(records, summary)
 
     return summary
 

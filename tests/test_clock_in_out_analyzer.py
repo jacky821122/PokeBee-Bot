@@ -207,12 +207,13 @@ class TestAnalyzeEmployeeHourly:
         assert recs[0].normal_hours == 4.0
         assert recs[0].overtime_hours == 0.0
 
-    def test_late_shift_1_with_overtime(self):
-        # 林孟儒 02-07: in 16:07→16:00, out 20:30 → 晚班1, 4hr normal + 0.5hr overtime
+    def test_late_shift_1_past_normal_end_no_overtime(self):
+        # 林孟儒 02-07: in 16:07→16:00, out 20:30 → 晚班1, worked 4.5hr
+        # Daily total 4.5 < 8hr → all normal, no overtime
         s, recs = run([ci("16:07"), co("20:30")])
         assert recs[0].shift == "晚班1"
-        assert recs[0].normal_hours == 4.0
-        assert recs[0].overtime_hours == 0.5
+        assert recs[0].normal_hours == 4.5
+        assert recs[0].overtime_hours == 0.0
 
     def test_late_shift_2_no_overtime(self):
         # in 16:30→16:30, out 20:30→20:30 (≤ normal_end) → 晚班2 4hr exact
@@ -224,18 +225,20 @@ class TestAnalyzeEmployeeHourly:
     # --- 全日連續班 ---
 
     def test_full_day_shift(self):
-        # 許凱惟 02-02: in 10:00, out 20:00 → 全日連續班 8hr
+        # 許凱惟 02-02: in 10:00, out 20:00 → 全日連續班, worked 10hr
+        # Daily total 10 > 8 → 8 normal + 2 overtime
         s, recs = run([ci("10:00"), co("20:00")])
         assert recs[0].shift == "全日連續班"
         assert recs[0].normal_hours == 8.0
-        assert recs[0].overtime_hours == 0.0
+        assert recs[0].overtime_hours == 2.0
 
     def test_full_day_shift_with_overtime(self):
-        # out 21:00 → floor=21:00, 21:00 > 20:30 → 0.5hr overtime
+        # in 10:00, out 21:00 → 全日連續班, worked 11hr
+        # Daily total 11 > 8 → 8 normal + 3 overtime
         s, recs = run([ci("10:00"), co("21:00")])
         assert recs[0].shift == "全日連續班"
         assert recs[0].normal_hours == 8.0
-        assert recs[0].overtime_hours == 0.5
+        assert recs[0].overtime_hours == 3.0
 
     # --- 缺打卡 ---
 
@@ -301,12 +304,13 @@ class TestAnalyzeEmployeeHourly:
         assert recs[0].normal_hours == 4.0
         assert recs[0].overtime_hours == 0.0
 
-    def test_shifted_schedule_with_real_overtime(self):
-        # in 10:00→10:00, out 14:35→14:30, worked=4.5 → normal=4.0, overtime=0.5
+    def test_shifted_schedule_slightly_long_no_overtime(self):
+        # in 10:00→10:00, out 14:35→14:30, worked=4.5hr
+        # Daily total 4.5 < 8hr → all normal, no overtime
         s, recs = run([ci("10:00"), co("14:35")])
         assert recs[0].shift == "早班"
-        assert recs[0].normal_hours == 4.0
-        assert recs[0].overtime_hours == 0.5
+        assert recs[0].normal_hours == 4.5
+        assert recs[0].overtime_hours == 0.0
 
     # --- summary accumulation ---
 

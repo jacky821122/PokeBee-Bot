@@ -56,6 +56,7 @@ Tests cover `metrics_common` (pure unit, 32 cases) and `calculate_daily_metrics`
 1. User uploads a CSV to the LINE bot (1:1 only) → `handle_file_message()` saves to `data/ichef/raw/YYYY-MM/` and calls `import_csv()` or `import_modifier_csv()` → inserted into SQLite
 2. User sends `分析 YYYY-MM-DD` (or `分析 今天` / `分析 昨天`) → `calculate_daily_metrics()` → `render_daily_report()` → reply via LINE API
 3. User sends `週報 YYYY-MM-DD YYYY-MM-DD` (or `週報 上週`) → `calculate_weekly_metrics()` → `render_weekly_report()` → reply via LINE API
+4. User uploads a `Clock-in_out Record_*.csv` to the LINE bot → `analyze_csv()` → `format_summary()` → reply text summary; XLSX saved to `data_new/clock_in_out/`
 
 **Module responsibilities:**
 - `line_bot_app.py` — Flask webhook; routes LINE events to handlers; only allows hardcoded `ALLOWED_USER_IDS`

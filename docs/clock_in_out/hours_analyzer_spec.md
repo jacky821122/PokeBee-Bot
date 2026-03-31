@@ -54,14 +54,14 @@ minute ≥ 45   → round up to next :00 (+1 hour, minute=0)
 
 #### 計時人員（非小王叭）
 
-| 情況 | 正常時數 | 加班時數 | Flag |
+| 情況 | 正常時數（per record） | 加班時數 | Flag |
 |------|---------|---------|------|
-| 完整班（both in/out）| norm_out - norm_in 的前 4hr 部分 | 若 norm_out > normal_end + 30min：差值 | 若正常時數 ≠ 4hr |
-| 全日連續班（強制拆分）| 8hr（4+4）| 若 norm_out > 20:30：差值 | 必定 flag |
+| 完整班（both in/out）| norm_out - norm_in（實際時數） | 0（per record，見日計加班） | 若正常時數 ≠ 4hr |
+| 全日連續班（強制拆分）| norm_out - norm_in（實際時數） | 0（per record，見日計加班） | 必定 flag |
 | 只有 clock-in（no clock-out）| 4hr（default） | 0 | 必定 flag |
 | 只有 clock-out（no clock-in）| 從 norm_out 推算：若 ≤ 14:30 → 早班4hr；≥ 20:00 → 晚班4hr | 0 | 必定 flag |
 
-加班判定：norm_out - normal_end ≥ 30 min → 算加班，normal_hours = normal_end - norm_in，overtime = norm_out - normal_end
+**日計加班（post-process）**：計算員工每日所有 record 的時數總和。若日總時數 > 8hr → 正常 8hr，超過部分計為加班，並標註。單一班次超過4hr（但日總 ≤ 8hr）不算加班，全部計入正常時數。
 
 #### 正職員工（小王叭）
 

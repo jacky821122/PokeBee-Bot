@@ -51,13 +51,17 @@ python weekly_generator.py --start YYYY-MM-DD --end YYYY-MM-DD
 
 ## Employee Hours
 
-Calculate employee clock-in/out hours from iCHEF CSV exports:
+Upload a `Clock-in_out Record_*.csv` via LINE bot to get an instant summary reply and XLSX report saved to `data_new/clock_in_out/`.
+
+Or run directly from CLI:
 
 ```sh
 python clock_in_out_analyzer.py "data/clock_in_out/Clock-in_out Record_YYYY-MM-DD~YYYY-MM-DD.csv"
 ```
 
 Outputs a console summary (normal hours, overtime, flagged shifts) and a detailed report at `data/clock_in_out/clock_report_YYYY-MM.{csv,xlsx}`.
+
+**Overtime rule (PT employees):** overtime only when daily total hours > 8. A single shift running long (e.g. 5 hr) counts entirely as normal hours.
 
 ## Testing
 
